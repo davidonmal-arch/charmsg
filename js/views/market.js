@@ -1,0 +1,445 @@
+import { state, onChange } from "../state.js";
+import { openProfileModal } from "../ui.js";
+import { trade, tickMarket } from "../store.js";
+import {
+  avatarData,
+  clamp,
+  escapeHtml,
+  fmtNum,
+  fmtPct,
+  fmtRelative,
+  fmtTime,
+  nickHtml,
+  toast
+} from "../util.js";
+
+function priceFmt(n) {
+  const v = Number(n) || 0;
+  if (v >= 100) return v.toLocaleString("ru-RU", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  if (v >= 1) return v.toLocaleString("ru-RU", { maximumFractionDigits: 3, minimumFractionDigits: 3 });
+  return v.toLocaleString("ru-RU", { maximumFractionDigits: 4, minimumFractionDigits: 4 });
+}
+
+function buildChart(history) {
+  const now = Date.now();
+  let points = (Array.isArray(history) ? history : []).filter((p) => p && Number.isFinite(p.p) && Number.isFinite(p.t));
+  const dayPoints = points.filter((p) => p.t >= now - 86_400_000);
+  if (dayPoints.length >= 2) points = dayPoints;
+  points = points.slice(-70);
+  if (points.length === 0) points = [{ t: now - 1000, p: 100 }, { t: now, p: 100 }];
+  if (points.length === 1) points = [{ t: points[0].t - 1000, p: points[0].p }, points[0]];
+
+  const w = 680;
+  const h = 200;
+  const padY = 14;
+  const prices = points.map((p) => p.p);
+  let min = Math.min(...prices);
+  let max = Math.max(...prices);
+  if (min === max) {
+    min *= 0.985;
+    max *= 1.015;
+  }
+  const span = max - min;
+  min -= span * 0.08;
+  max += span * 0.08;
+
+  const x = (i) => (i / (points.length - 1)) * w;
+  const y = (p) => padY + (1 - (p - min) / (max - min)) * (h - padY * 2);
+
+  const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(2)},${y(p.p).toFixed(2)}`).join(" ");
+  const area = `${line} L${w},${h} L0,${h} Z`;
+  const first = points[0].p;
+  const last = points[points.length - 1].p;
+  const up = last >= first;
+  const stroke = up ? "#d9c2ec" : "#a98cbd";
+
+  const grid = [0.25, 0.5, 0.75]
+    .map((f) => `<line x1="0" x2="${w}" y1="${(padY + f * (h - padY * 2)).toFixed(1)}" y2="${(padY + f * (h - padY * 2)).toFixed(1)}" stroke="rgba(196,164,218,.08)" stroke-width="1" stroke-dasharray="3 5"/>`)
+    .join("");
+
+  return `<svg class="chart-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="График цены CharCoin">
+    <defs>
+      <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${stroke}" stop-opacity="0.32"/>
+        <stop offset="100%" stop-color="${stroke}" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="chartStroke" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#7f5d99"/>
+        <stop offset="55%" stop-color="${stroke}"/>
+        <stop offset="100%" stop-color="#e7d6f5"/>
+      </linearGradient>
+    </defs>
+    ${grid}
+    <path d="${area}" fill="url(#chartFill)"/>
+    <path d="${line}" fill="none" stroke="url(#chartStroke)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" filter="drop-shadow(0 0 6px rgba(196,164,218,.45))"/>
+    <circle cx="${x(points.length - 1).toFixed(2)}" cy="${y(last).toFixed(2)}" r="3.6" fill="#e7d6f5" stroke="#4c2365" stroke-width="2"/>
+  </svg>
+  <div class="chart-legend"><span>${escapeHtml(priceFmt(min))} · минимум</span><span>${escapeHtml(priceFmt(max))} · максимум</span></div>`;
+}
+
+export function mountMarket(container) {
+  let side = "buy";
+  let amountInputValue = "";
+
+  container.innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">экономика charmsg</div>
+        <h1 class="page-title">Биржа <span class="nick-admin" style="font-size:0.64em;vertical-align:middle">CHR</span></h1>
+        <p class="page-sub">Ненастоящая криптовалюта с настоящим влиянием: каждая сделка двигает общую цену для всех игроков и ботов.</p>
+      </div>
+      <div class="badge solid"><span class="dot live"></span> рынок живёт</div>
+    </div>
+
+    <div class="market-grid">
+      <div class="stack">
+        <div class="card market-hero">
+          <div class="market-hero-top">
+            <div class="coin-title">
+              <div class="coin-logo">◈</div>
+              <div>
+                <div class="coin-name">CharCoin</div>
+                <div class="coin-ticker">CHR · FIRESTORE MARKET</div>
+              </div>
+            </div>
+            <div class="badge" id="botsBadge">боты активны</div>
+          </div>
+          <div class="price-row">
+            <div class="price-big" id="priceBig">100.00</div>
+            <div class="price-unit">CR за 1 CHR</div>
+            <div class="delta" id="deltaChip">+0.00%</div>
+          </div>
+          <div class="chart-wrap" id="chartWrap"></div>
+          <div class="market-meta">
+            <span>Объём: <b id="metaVolume">0</b> CR</span>
+            <span>Ликвидность: <b id="metaLiq">12 000</b></span>
+            <span>Сделок в ленте: <b id="metaTrades">0</b></span>
+            <span>Обновляется в реальном времени</span>
+          </div>
+        </div>
+
+        <div class="card trade-panel">
+          <div class="row-between" style="margin-bottom:13px">
+            <div>
+              <div class="eyebrow">сделка</div>
+              <div style="font-size:16px;font-weight:750;letter-spacing:-.02em;margin-top:4px">Купить или продать CHR</div>
+            </div>
+            <span class="badge" id="tradeAvail">—</span>
+          </div>
+          <div class="seg">
+            <button type="button" class="seg-btn active" id="buyTab">Купить</button>
+            <button type="button" class="seg-btn sell" id="sellTab">Продать</button>
+          </div>
+          <div class="field">
+            <label id="amountLabel">Сумма в CR</label>
+            <div class="amount-wrap">
+              <input class="input" id="tradeAmount" inputmode="decimal" placeholder="0.00" autocomplete="off" />
+              <span class="amount-suffix" id="amountSuffix">CR</span>
+            </div>
+            <div class="quick-row" id="quickRow">
+              <button class="quick-btn" data-frac="0.25">25%</button>
+              <button class="quick-btn" data-frac="0.5">50%</button>
+              <button class="quick-btn" data-frac="0.75">75%</button>
+              <button class="quick-btn" data-frac="1">MAX</button>
+            </div>
+          </div>
+          <div class="trade-summary">
+            <div class="summary-row"><span>Вы получите</span><b id="estGet">0 CHR</b></div>
+            <div class="summary-row"><span>Средняя цена сделки</span><b id="estPrice">—</b></div>
+            <div class="summary-row"><span>Влияние на цену</span><b id="estImpact">0.00%</b></div>
+          </div>
+          <button class="btn btn-primary btn-block" id="tradeBtn" disabled>Купить CHR</button>
+          <p class="impact-note" style="margin:11px 0 0">Цена общая для всех: ваша покупка толкает её вверх, продажа — вниз. Боты торгуют параллельно и тоже влияют на рынок. Стартовый баланс — 100 CR.</p>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="card portfolio-card">
+          <div class="eyebrow">портфель</div>
+          <div class="portfolio-balance" id="portfolioTotal">—</div>
+          <div class="portfolio-sub">Общая стоимость в CR</div>
+          <div class="portfolio-rows">
+            <div class="p-row"><span>Баланс CR</span><b id="pCoins">—</b></div>
+            <div class="p-row"><span>CharCoin (CHR)</span><b id="pChr">—</b></div>
+            <div class="p-row"><span>Стоимость CHR</span><b id="pValue">—</b></div>
+            <div class="p-row"><span>Вложено в CHR</span><b id="pCost">—</b></div>
+            <div class="p-row"><span>P&L</span><b id="pPnl">—</b></div>
+          </div>
+          <a href="#/profile" class="btn btn-ghost btn-block btn-sm" style="margin-top:12px">Настроить профиль</a>
+        </div>
+
+        <div class="card feed-card">
+          <div class="row-between" style="margin-bottom:9px">
+            <div>
+              <div class="eyebrow">лента</div>
+              <div style="font-size:15px;font-weight:750;letter-spacing:-.02em;margin-top:4px">Последние сделки</div>
+            </div>
+            <span class="badge"><span class="dot live"></span> live</span>
+          </div>
+          <div class="feed-list" id="feedList"><div class="empty" style="min-height:120px"><p>Ждём первые сделки…</p></div></div>
+        </div>
+
+        <div class="card leader-card">
+          <div class="eyebrow">топ</div>
+          <div style="font-size:15px;font-weight:750;letter-spacing:-.02em;margin:4px 0 8px">Богатейшие трейдеры</div>
+          <div id="leaders"><div class="empty" style="min-height:100px"><p>Считаем портфели…</p></div></div>
+        </div>
+      </div>
+    </div>`;
+
+  const $ = (id) => container.querySelector(`#${id}`);
+  const priceBig = $("priceBig");
+  const deltaChip = $("deltaChip");
+  const chartWrap = $("chartWrap");
+  const botsBadge = $("botsBadge");
+  const metaVolume = $("metaVolume");
+  const metaLiq = $("metaLiq");
+  const metaTrades = $("metaTrades");
+  const buyTab = $("buyTab");
+  const sellTab = $("sellTab");
+  const amountEl = $("tradeAmount");
+  const amountSuffix = $("amountSuffix");
+  const amountLabel = $("amountLabel");
+  const tradeAvail = $("tradeAvail");
+  const estGet = $("estGet");
+  const estPrice = $("estPrice");
+  const estImpact = $("estImpact");
+  const tradeBtn = $("tradeBtn");
+  const portfolioTotal = $("portfolioTotal");
+  const pCoins = $("pCoins");
+  const pChr = $("pChr");
+  const pValue = $("pValue");
+  const pCost = $("pCost");
+  const pPnl = $("pPnl");
+  const feedList = $("feedList");
+  const leaders = $("leaders");
+
+  const marketPrice = () => Number(state.market?.price) || 100;
+  const liquidity = () => Math.max(1000, Number(state.market?.liq) || 12000);
+
+  function available() {
+    if (!state.profile) return 0;
+    return side === "buy" ? Number(state.profile.coins) || 0 : Number(state.profile.chr) || 0;
+  }
+
+  function estimate(raw) {
+    const price = marketPrice();
+    const liq = liquidity();
+    const amount = Math.max(0, Number(raw) || 0);
+    if (side === "buy") {
+      const cr = Math.min(amount, available());
+      const impact = clamp(cr / liq, 0, 0.4);
+      const chr = cr / (price * (1 + impact / 2));
+      return { cr, chr, impact, avg: cr / Math.max(chr, 1e-9) };
+    }
+    const chr = Math.min(amount, available());
+    const notional = chr * price;
+    const impact = clamp(notional / liq, 0, 0.4);
+    const cr = chr * price * (1 - impact / 2);
+    return { cr, chr, impact, avg: cr / Math.max(chr, 1e-9) };
+  }
+
+  function refreshTradeUi() {
+    if (!state.profile) {
+      tradeBtn.disabled = true;
+      tradeBtn.textContent = "Сначала создайте профиль";
+      tradeAvail.textContent = "нет профиля";
+      return;
+    }
+    const price = marketPrice();
+    const est = estimate(amountEl.value);
+    const avail = available();
+    tradeAvail.textContent = side === "buy" ? `${fmtNum(avail)} CR доступно` : `${fmtNum(avail, 2)} CHR доступно`;
+    estGet.textContent = side === "buy" ? `${fmtNum(est.chr, est.chr < 10 ? 4 : 2)} CHR` : `${fmtNum(est.cr)} CR`;
+    estPrice.textContent = est.chr > 0 ? `${priceFmt(est.avg)} CR` : "—";
+    estImpact.textContent = `${(est.impact * 100).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+    const amount = Number(amountEl.value) || 0;
+    tradeBtn.disabled = !(amount > 0 && avail > 0);
+    tradeBtn.textContent = side === "buy" ? "Купить CHR" : "Продать CHR";
+    if (side === "buy") {
+      amountLabel.textContent = "Сумма в CR";
+      amountSuffix.textContent = "CR";
+      amountEl.placeholder = "0.00";
+    } else {
+      amountLabel.textContent = "Количество CHR";
+      amountSuffix.textContent = "CHR";
+      amountEl.placeholder = "0.0000";
+    }
+  }
+
+  function refreshPortfolio() {
+    const price = marketPrice();
+    const p = state.profile;
+    if (!p) {
+      portfolioTotal.textContent = "—";
+      pCoins.textContent = "—";
+      pChr.textContent = "—";
+      pValue.textContent = "—";
+      pCost.textContent = "—";
+      pPnl.textContent = "—";
+      return;
+    }
+    const coins = Number(p.coins) || 0;
+    const chr = Number(p.chr) || 0;
+    const cost = Number(p.chrCost) || 0;
+    const value = chr * price;
+    const total = coins + value;
+    const pnl = value - cost;
+    portfolioTotal.textContent = `${fmtNum(total, 2)} CR`;
+    pCoins.textContent = `${fmtNum(coins, 2)} CR`;
+    pChr.textContent = `${fmtNum(chr, chr < 1 ? 4 : 2)} CHR`;
+    pValue.textContent = `${fmtNum(value, 2)} CR`;
+    pCost.textContent = `${fmtNum(cost, 2)} CR`;
+    pPnl.textContent = `${pnl >= 0 ? "+" : ""}${fmtNum(pnl, 2)} CR`;
+    pPnl.style.color = pnl >= 0 ? "var(--pos)" : "var(--neg)";
+  }
+
+  function refreshChartAndPrice() {
+    const market = state.market || { price: 100, history: [] };
+    const price = Number(market.price) || 100;
+    priceBig.textContent = priceFmt(price);
+    chartWrap.innerHTML = buildChart(market.history);
+    const now = Date.now();
+    const history = (market.history || []).filter((p) => p && p.t >= now - 86_400_000);
+    const base = history.length ? history[0].p : price;
+    const delta = base ? ((price - base) / base) * 100 : 0;
+    deltaChip.textContent = fmtPct(delta);
+    deltaChip.classList.toggle("neg", delta < 0);
+    botsBadge.innerHTML = market.bots === false ? "боты выключены" : '<span class="dot live"></span> боты активны';
+    metaVolume.textContent = fmtNum(market.volume || 0);
+    metaLiq.textContent = fmtNum(market.liq || 12000);
+    metaTrades.textContent = String(state.trades.length);
+  }
+
+  function refreshFeed() {
+    const trades = state.trades || [];
+    if (!trades.length) {
+      feedList.innerHTML = `<div class="empty" style="min-height:120px"><p>Ждём первые сделки…</p></div>`;
+      return;
+    }
+    feedList.innerHTML = trades
+      .map((t) => {
+        const isBot = !!t.isBot;
+        return `<div class="feed-row">
+          <span class="side-badge ${t.side === "buy" ? "buy" : "sell"}">${t.side === "buy" ? "↑" : "↓"}</span>
+          <span class="feed-nick ${t.isAdmin ? "nick-admin" : ""}" ${isBot ? "" : `data-uid="${escapeHtml(t.uid)}"`} title="${escapeHtml(t.nick || "")}">${escapeHtml(t.nick || "Аноним")}</span>
+          ${isBot ? '<span class="dm-tag">bot</span>' : ""}
+          <span class="feed-amount">${t.side === "buy" ? "+" : "−"}${fmtNum(t.amountChr || 0, 3)} CHR</span>
+          <span class="feed-time">${fmtRelative(t.ts)}</span>
+        </div>`;
+      })
+      .join("");
+  }
+
+  function refreshLeaders() {
+    const price = marketPrice();
+    const users = [...state.users.values()]
+      .filter((u) => u && u.nick)
+      .map((u) => ({ ...u, portfolio: (Number(u.coins) || 0) + (Number(u.chr) || 0) * price }))
+      .sort((a, b) => b.portfolio - a.portfolio);
+    const own = state.profile;
+    let list = users.slice(0, 8);
+    if (own && !list.some((u) => u.uid === own.uid || u.id === own.uid)) list = [...list, own];
+    leaders.innerHTML = list
+      .map((u, i) => {
+        const uid = u.uid || u.id;
+        return `<div class="leader-row" data-uid="${escapeHtml(uid)}">
+          <span class="leader-rank">${i + 1}</span>
+          ${avatarData(u.nick, u.avatar, 26)}
+          <span class="leader-nick ${u.isAdmin ? "nick-admin" : ""}">${escapeHtml(u.nick)}</span>
+          <span class="leader-value">${fmtNum(u.portfolio, 2)} CR</span>
+        </div>`;
+      })
+      .join("");
+  }
+
+  function refresh() {
+    refreshChartAndPrice();
+    refreshTradeUi();
+    refreshPortfolio();
+    refreshFeed();
+    refreshLeaders();
+  }
+
+  function setSide(next) {
+    side = next;
+    buyTab.classList.toggle("active", side === "buy");
+    sellTab.classList.toggle("active", side === "sell");
+    amountEl.value = "";
+    refreshTradeUi();
+  }
+
+  buyTab.addEventListener("click", () => setSide("buy"));
+  sellTab.addEventListener("click", () => setSide("sell"));
+  amountEl.addEventListener("input", refreshTradeUi);
+  amountEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") attemptTrade();
+  });
+
+  container.querySelectorAll("[data-frac]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const frac = Number(btn.dataset.frac);
+      const avail = available();
+      if (!avail) return;
+      const value = side === "buy" ? avail * frac : avail * frac;
+      amountEl.value = side === "buy" ? value.toFixed(2) : value.toFixed(4);
+      refreshTradeUi();
+    });
+  });
+
+  let trading = false;
+  async function attemptTrade() {
+    if (trading || !state.profile) return;
+    const raw = Number(amountEl.value);
+    if (!(raw > 0)) {
+      toast("Введите сумму", "error");
+      return;
+    }
+    const price = marketPrice();
+    const est = estimate(raw);
+    if (est.chr <= 0) {
+      toast(side === "buy" ? "Недостаточно CR" : "У вас нет CHR", "error");
+      return;
+    }
+    if (side === "buy" && est.cr < 1) {
+      toast("Минимальная покупка — 1 CR", "error");
+      return;
+    }
+    trading = true;
+    tradeBtn.disabled = true;
+    tradeBtn.textContent = "Отправляем сделку…";
+    try {
+      const result = await trade(state.uid, side, raw);
+      toast(
+        side === "buy"
+          ? `Куплено ${fmtNum(result.amountChr, 4)} CHR за ${fmtNum(result.amountCr, 2)} CR`
+          : `Продано ${fmtNum(result.amountChr, 4)} CHR за ${fmtNum(result.amountCr, 2)} CR`,
+        "success"
+      );
+      amountEl.value = "";
+      refreshTradeUi();
+    } catch (err) {
+      toast(err.message || "Сделка не прошла", "error");
+    } finally {
+      trading = false;
+      refreshTradeUi();
+      void price;
+    }
+  }
+  tradeBtn.addEventListener("click", attemptTrade);
+
+  feedList.addEventListener("click", (e) => {
+    const node = e.target.closest("[data-uid]");
+    if (node?.dataset.uid) openProfileModal(node.dataset.uid);
+  });
+  leaders.addEventListener("click", (e) => {
+    const node = e.target.closest("[data-uid]");
+    if (node?.dataset.uid) openProfileModal(node.dataset.uid);
+  });
+
+  const unsub = onChange(refresh);
+  refresh();
+  tickMarket();
+
+  return () => unsub();
+}

@@ -1,0 +1,17 @@
+{
+  "name": "CharMsg — анонимный мессенджер",
+  "short_name": "CharMsg",
+  "description": "Анонимный мессенджер с исчезающими чатами и биржей CharCoin",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "./assets/logo.jpg",
+      "sizes": "725x720",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
+}

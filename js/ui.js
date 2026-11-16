@@ -1,0 +1,171 @@
+import {
+  avatarData,
+  escapeHtml,
+  fmtNum,
+  fmtRelative,
+  nickHtml,
+  toast
+} from "./util.js";
+import { state, userOf } from "./state.js";
+import { adminLogin, fetchUser, openDM } from "./store.js";
+
+const root = () => document.getElementById("modalRoot");
+
+export function openModal(contentHtml, { className = "", onClose = null, closeOnBackdrop = true } = {}) {
+  const overlay = document.createElement("div");
+  overlay.className = `modal-overlay ${className}`.trim();
+  overlay.innerHTML = `<div class="modal">${contentHtml}</div>`;
+  const close = () => {
+    if (!overlay.isConnected) return;
+    overlay.remove();
+    document.removeEventListener("keydown", onKey);
+    if (onClose) onClose();
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape") close();
+  };
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay && closeOnBackdrop) close();
+  });
+  overlay.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", close));
+  document.addEventListener("keydown", onKey);
+  root().append(overlay);
+  return { overlay, close, body: overlay.querySelector(".modal") };
+}
+
+export function confirmDialog(title, text, confirmLabel = "Подтвердить", danger = false) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const modal = openModal(
+      `<h3 class="modal-title">${escapeHtml(title)}</h3>
+       <p class="modal-sub">${escapeHtml(text)}</p>
+       <div class="modal-actions">
+         <button class="btn btn-ghost" data-cancel>Отмена</button>
+         <button class="btn ${danger ? "btn-danger" : "btn-primary"}" data-ok>${escapeHtml(confirmLabel)}</button>
+       </div>`,
+      { onClose: () => done(false) }
+    );
+    modal.body.querySelector("[data-cancel]").addEventListener("click", () => {
+      done(false);
+      modal.close();
+    });
+    modal.body.querySelector("[data-ok]").addEventListener("click", () => {
+      done(true);
+      modal.close();
+    });
+  });
+}
+
+export function userCardHtml(user, { own = false } = {}) {
+  const u = user || { nick: "Аноним", bio: "", avatar: "", isAdmin: false };
+  const joined = u.createdAt ? new Date(u.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "неизвестно";
+  return `
+    <div class="user-modal-banner"></div>
+    <div class="user-modal-body">
+      <div class="user-modal-avatar">${avatarData(u.nick, u.avatar, 84)}</div>
+      <div class="user-modal-name">
+        ${nickHtml(u.nick || "Аноним", u.isAdmin)}
+        ${u.isAdmin ? '<span class="admin-tag">admin</span>' : ""}
+        ${u.banned ? '<span class="badge">заблокирован</span>' : ""}
+      </div>
+      <div class="user-modal-meta">В CharMsg с ${escapeHtml(joined)}${own ? " · это вы" : ""}</div>
+      <p class="user-modal-bio">${u.bio ? escapeHtml(u.bio) : '<span class="muted">Без описания — загадочная личность.</span>'}</p>
+      <div class="user-modal-stats">
+        <span class="badge solid">◈ ${fmtNum(u.coins || 0)} CR</span>
+        <span class="badge">${fmtNum(u.chr || 0, 2)} CHR</span>
+        <span class="badge">${fmtNum(u.msgCount || 0)} сообщений</span>
+      </div>
+      <div class="modal-actions">
+        ${own
+          ? `<button class="btn btn-primary btn-block" data-edit>Редактировать профиль</button>`
+          : `<button class="btn btn-primary btn-block" data-dm>Написать в личные сообщения</button>`}
+      </div>
+    </div>`;
+}
+
+export async function openProfileModal(uid, { onDM } = {}) {
+  let user = userOf(uid);
+  if (!user) user = await fetchUser(uid).catch(() => null);
+  if (!user) {
+    toast("Профиль не найден", "error");
+    return;
+  }
+  const own = uid === state.uid;
+  const modal = openModal(userCardHtml(user, { own }), { className: "user-modal" });
+
+  modal.body.querySelector("[data-edit]")?.addEventListener("click", () => {
+    modal.close();
+    location.hash = "#/profile";
+  });
+
+  modal.body.querySelector("[data-dm]")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = "Открываем чат…";
+    try {
+      const chatId = await openDM(state.uid, uid);
+      modal.close();
+      state.activeChatId = chatId;
+      if (onDM) onDM(chatId);
+      if (location.hash !== "#/chats") location.hash = "#/chats";
+      window.dispatchEvent(new CustomEvent("charmsg:open-chat", { detail: { chatId } }));
+    } catch (err) {
+      toast(err.message || "Не удалось открыть чат", "error");
+      btn.disabled = false;
+      btn.textContent = "Написать в личные сообщения";
+    }
+  });
+}
+
+export function openAdminLoginModal() {
+  const modal = openModal(
+    `<button class="modal-close" data-close aria-label="Закрыть">×</button>
+     <div class="onboard-head">
+       <div class="onboard-logo"><img src="./assets/logo.jpg" alt="" /></div>
+       <div>
+         <h2 class="onboard-title">Вход администратора</h2>
+         <p class="onboard-sub">Панель управления CharMsg</p>
+       </div>
+     </div>
+     <form class="admin-form" id="adminLoginForm">
+       <div class="field">
+         <label for="adminLogin">Логин</label>
+         <input class="input" id="adminLogin" name="login" autocomplete="username" placeholder="Введите логин" required />
+       </div>
+       <div class="field">
+         <label for="adminPassword">Пароль</label>
+         <input class="input" id="adminPassword" name="password" type="password" autocomplete="current-password" placeholder="Введите пароль" required />
+       </div>
+       <div class="error-text" id="adminLoginError"></div>
+       <button class="btn btn-primary btn-block" type="submit" id="adminLoginSubmit">Войти в админ-панель</button>
+     </form>
+     <p class="admin-note">Доступ только для владельца CharMsg. После входа ник выделяется переливающимся фиолетовым.</p>`,
+    { className: "admin-login-modal" }
+  );
+  const form = modal.body.querySelector("#adminLoginForm");
+  const error = modal.body.querySelector("#adminLoginError");
+  const submit = modal.body.querySelector("#adminLoginSubmit");
+  modal.body.querySelector("#adminLogin").focus();
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    error.textContent = "";
+    submit.disabled = true;
+    submit.textContent = "Проверяем…";
+    try {
+      await adminLogin(form.login.value, form.password.value);
+      modal.close();
+      toast("Добро пожаловать, farnaz ✦", "success");
+      setTimeout(() => location.reload(), 450);
+    } catch (err) {
+      error.textContent = err.message || "Ошибка входа";
+      submit.disabled = false;
+      submit.textContent = "Войти в админ-панель";
+    }
+  });
+}

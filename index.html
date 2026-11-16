@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <title>CharMsg — анонимный мессенджер</title>
+  <meta name="description" content="CharMsg — полностью анонимный мессенджер с исчезающими чатами и биржей CharCoin. Без email и номера телефона." />
+  <link rel="icon" type="image/jpeg" href="./assets/logo.jpg" />
+  <link rel="apple-touch-icon" href="./assets/logo.jpg" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div class="bg" aria-hidden="true">
+    <span class="orb orb-1"></span>
+    <span class="orb orb-2"></span>
+    <span class="orb orb-3"></span>
+    <span class="grid-overlay"></span>
+  </div>
+
+  <div class="app" id="app">
+    <header class="topbar">
+      <a class="brand" href="#/chats" aria-label="CharMsg">
+        <span class="brand-logo"><img src="./assets/logo.jpg" alt="CharMsg" /></span>
+        <span class="brand-text">
+          <span class="brand-name">CharMsg</span>
+          <span class="brand-sub">anonymous</span>
+        </span>
+      </a>
+
+      <nav class="nav" id="mainNav">
+        <a href="#/chats" data-route="chats" class="nav-link">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          Чаты
+        </a>
+        <a href="#/market" data-route="market" class="nav-link">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>
+          Биржа
+        </a>
+        <a href="#/profile" data-route="profile" class="nav-link">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+          Профиль
+        </a>
+        <a href="#/admin" data-route="admin" class="nav-link" id="navAdmin" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          Админ
+        </a>
+      </nav>
+
+      <div class="topbar-right">
+        <a class="balance-chip" href="#/market" id="balanceChip" title="Баланс CharCoin">
+          <span class="balance-icon">◈</span>
+          <span class="balance-value" id="balanceValue">100</span>
+        </a>
+        <button class="admin-entry" id="adminEntryBtn" type="button" title="Вход для администратора" aria-label="Вход для администратора">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        </button>
+        <button class="me-btn" id="meBtn" type="button" aria-label="Мой профиль">
+          <span class="avatar" id="meAvatar"></span>
+          <span class="me-name" id="meName">Гость</span>
+        </button>
+      </div>
+    </header>
+
+    <main id="view" class="view-root" aria-live="polite"></main>
+
+    <nav class="tabbar" id="tabbar" aria-label="Навигация">
+      <a href="#/chats" data-route="chats">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        <span>Чаты</span>
+      </a>
+      <a href="#/market" data-route="market">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>
+        <span>Биржа</span>
+      </a>
+      <a href="#/profile" data-route="profile">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+        <span>Профиль</span>
+      </a>
+      <a href="#/admin" data-route="admin" id="tabAdmin" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+        <span>Админ</span>
+      </a>
+    </nav>
+  </div>
+
+  <div id="modalRoot"></div>
+  <div id="toastRoot" class="toast-root"></div>
+
+  <div class="boot" id="boot">
+    <div class="boot-logo"><img src="./assets/logo.jpg" alt="" /></div>
+    <div class="boot-name">CharMsg</div>
+    <div class="boot-spinner"></div>
+    <div class="boot-text">Подключаемся к Firestore…</div>
+  </div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

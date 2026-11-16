@@ -1,0 +1,58 @@
+rules_version = '2';
+
+// CharMsg Firestore rules.
+// The messenger is intentionally anonymous: users have no Firebase Auth account,
+// identity is a random device id stored in localStorage. These rules therefore
+// allow anonymous reads/writes but validate document shapes and keep the
+// admin credential document read-only for clients.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Admin credentials (login/salt/hash) are seeded server-side only.
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if true;
+      allow create: if request.resource.data.nick is string
+        && request.resource.data.nick.size() >= 2
+        && request.resource.data.nick.size() <= 18;
+      allow update: if request.resource.data.nick is string
+        && request.resource.data.nick.size() >= 2
+        && request.resource.data.nick.size() <= 18;
+      allow delete: if true;
+    }
+
+    match /chats/{chatId} {
+      allow read: if true;
+      allow create: if request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60;
+      allow update: if true;
+      allow delete: if true;
+
+      match /messages/{msgId} {
+        allow read: if true;
+        allow create: if request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1500;
+        allow update, delete: if true;
+      }
+    }
+
+    match /market/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /trades/{tradeId} {
+      allow read: if true;
+      allow create: if request.resource.data.nick is string
+        && request.resource.data.ts is number
+        && request.resource.data.side in ['buy', 'sell'];
+      allow update, delete: if false;
+    }
+  }
+}
