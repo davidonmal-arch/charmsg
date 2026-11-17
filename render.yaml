@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: charmsg-api
+    runtime: node
+    plan: free
+    branch: charmsg-secure-release
+    rootDir: functions
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: GCLOUD_PROJECT
+        value: charmsg
+      - key: CHARMSG_WEB_ORIGIN
+        value: https://davidonmal-arch.github.io
+      - key: CHARMSG_SERVICE_ACCOUNT
+        sync: false

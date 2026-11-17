@@ -9,3 +9,6 @@ export const firebaseConfig = {
   messagingSenderId: "965791996716",
   projectNumber: "965791996716"
 };
+
+// Public HTTPS origin of the deployed Render service.
+export const apiOrigin = "";

@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js";
+import { apiOrigin, firebaseConfig } from "./firebase-config.js";
 
 import { getAuth, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
@@ -16,7 +16,7 @@ const playerAuth = getAuth(playerApp);
 export const auth = localStorage.getItem("charmsg_admin_mode") ? adminAuth : playerAuth;
 export const app = auth.app;
 export const db = getFirestore(app);
-const functions = getFunctions(app);
+const functions = getFunctions(app, local ? undefined : apiOrigin || undefined);
 if (local) {
   connectAuthEmulator(playerAuth, "http://127.0.0.1:9099", { disableWarnings: true });
   connectAuthEmulator(adminAuth, "http://127.0.0.1:9099", { disableWarnings: true });
@@ -24,7 +24,7 @@ if (local) {
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);
 }
 
-const action = httpsCallable(functions, "charmsgAction");
+const action = httpsCallable(functions, "charmsgAction", { timeout: 105_000 });
 export async function runAction(name, ...args) {
   return (await action({ action: name, args })).data;
 }

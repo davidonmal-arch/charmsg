@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
@@ -10,7 +12,25 @@ initializeApp({ projectId: project });
 const db = getFirestore();
 const auth = getAuth();
 const authBase = "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:";
-const callable = "http://127.0.0.1:5001/demo-charmsg/us-central1/charmsgAction";
+const callable = "http://127.0.0.1:5002/charmsgAction";
+const origin = "https://davidonmal-arch.github.io";
+const server = spawn(process.execPath, [fileURLToPath(new URL("./server.js", import.meta.url))], {
+  env: { ...process.env, GCLOUD_PROJECT: project, PORT: "5002", CHARMSG_WEB_ORIGIN: origin },
+  stdio: "inherit"
+});
+server.unref();
+process.on("exit", () => server.kill());
+for (let attempt = 0; attempt < 40; attempt++) {
+  if (await fetch("http://127.0.0.1:5002/healthz").then((response) => response.ok, () => false)) break;
+  assert.equal(server.exitCode, null, "Standalone API exited");
+  await new Promise((resolve) => setTimeout(resolve, 250));
+}
+const preflight = await fetch(callable, {
+  method: "OPTIONS",
+  headers: { Origin: origin, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization,content-type" }
+});
+assert.equal(preflight.status, 204);
+assert.equal(preflight.headers.get("access-control-allow-origin"), origin);
 const headers = (token) => ({ "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) });
 const uid = (session) => session.localId;
 
@@ -129,3 +149,6 @@ await users.doc(uid(bob)).update({ banUntil: Date.now() - 1 });
 assert.equal(await invoke(bob, "expireBanIfNeeded"), true);
 assert.ok(Array.isArray(await invoke(bob, "listPastes")));
 console.log("Integration checks passed: identity, roles, paste visibility, chats, roulette, all upgrade combinations, and manual bans.");
+
+await db.terminate();
+server.kill();

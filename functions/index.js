@@ -1,9 +1,16 @@
-import { initializeApp } from "firebase-admin/app";
+import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import * as ops from "./operations.js";
 
-initializeApp();
+const serviceAccount = process.env.CHARMSG_SERVICE_ACCOUNT;
+if (serviceAccount) {
+  const credentials = JSON.parse(serviceAccount);
+  if (credentials.project_id !== process.env.GCLOUD_PROJECT) throw new Error("Firebase project does not match the service account");
+  initializeApp({ credential: cert(credentials), projectId: credentials.project_id });
+} else {
+  initializeApp();
+}
 const db = () => getFirestore();
 const isAdmin = (auth) => auth.uid === ops.ADMIN_UID && auth.token.admin === true;
 const denied = () => new HttpsError("permission-denied", "Для этого действия нет доступа");
@@ -216,7 +223,10 @@ const actions = {
 };
 
 const withoutProfile = new Set(["createProfile", "ensureAdminProfile", "ensureMarket", "listChats", "listPastes"]);
-export const charmsgAction = onCall({ maxInstances: 8 }, async ({ auth, data: request }) => {
+export const charmsgAction = onCall({
+  maxInstances: 8,
+  cors: process.env.CHARMSG_WEB_ORIGIN || true
+}, async ({ auth, data: request }) => {
   if (!auth) throw new HttpsError("unauthenticated", "Войдите в CharMsg");
   const { action, args } = data(request);
   if (typeof action !== "string" || !Object.hasOwn(actions, action) || !Array.isArray(args)) {

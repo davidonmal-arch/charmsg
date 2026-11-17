@@ -28,8 +28,8 @@
 ## Стек
 
 - Статические ES-модули (без сборки), HTML/CSS
-- Firebase Authentication, Firestore и Cloud Functions (проект `charmsg`) через Firebase JS SDK 10.12.5 (gstatic CDN)
-- GitHub Pages для хостинга
+- Firebase Authentication и Firestore (проект `charmsg`) через Firebase JS SDK 10.12.5 (gstatic CDN)
+- GitHub Pages для фронтенда, Node.js на Render для HTTP API
 
 ## Палитра
 
@@ -56,24 +56,21 @@ node functions/provision-admin.mjs demo-charmsg
 Интеграционные тесты запускаются на отдельном экземпляре эмуляторов:
 
 ```powershell
-firebase emulators:exec --project demo-charmsg --only auth,firestore,functions "node functions/integration.test.mjs"
+firebase emulators:exec --project demo-charmsg --only auth,firestore "node functions/integration.test.mjs"
 ```
 
 ## Публикация
 
-Cloud Functions требуют тариф Blaze. В Firebase Authentication включите анонимный вход
-и «Email/Password». В настройках Auth задайте обязательный минимум в 12 символов для пользовательских паролей. Через Application Default Credentials с правами управления
-Firebase Auth выполните `node functions/provision-admin.mjs charmsg`. Скрипт берёт
-новый пароль из `CHARMSG_ADMIN_PASSWORD`, назначает роль `admin` аккаунту
-`admin_farnaz` и отзывает старые сессии при смене пароля. В интерфейсе используется логин
-`farnaz`. Пароль прежней версии нужно заменить, поскольку хеш был доступен клиентам.
+GitHub Pages размещает фронтенд, Render Free запускает HTTP API на Node.js,
+а Firebase Spark хранит данные и обслуживает вход. Бесплатный сервис Render
+засыпает после 15 минут простоя. Первый запрос после паузы может ждать около минуты.
 
-Согласуйте переключение Firestore и GitHub Pages в одном окне развёртывания.
-После подготовки Firebase Auth:
-
-1. Разверните сервер командой `firebase deploy --only functions --project charmsg`.
-2. Примените правила командой `firebase deploy --only firestore:rules --project charmsg`.
-3. Опубликуйте фронтенд из корня ветки `main` на GitHub Pages.
+1. В Firebase Authentication включите «Анонимный» и «Email/Password» и задайте обязательный минимум 12 символов для паролей.
+2. Через Google Cloud IAM подготовьте отдельный сервисный аккаунт с ролью `roles/datastore.user` для Firestore.
+3. Подключите GitHub-репозиторий к Render через Blueprint. Укажите JSON-ключ сервисного аккаунта в секрете Render `CHARMSG_SERVICE_ACCOUNT`. Ключ хранится в Render и не нужен фронтенду.
+4. После успешного ответа `/healthz` впишите HTTPS-адрес сервиса Render в `apiOrigin` в `js/firebase-config.js`.
+5. Через Application Default Credentials с правами управления Firebase Auth выполните `node functions/provision-admin.mjs charmsg`. Скрипт берёт новый пароль из `CHARMSG_ADMIN_PASSWORD`, назначает роль `admin` аккаунту `admin_farnaz` и отзывает старые сессии при смене пароля. В интерфейсе используется логин `farnaz`. Замените пароль прежней версии, поскольку его хеш был доступен клиентам.
+6. Примените `firebase deploy --only firestore:rules --project charmsg` и опубликуйте фронтенд из ветки `main` на GitHub Pages в одном окне развёртывания.
 
 Старые ID из браузера нельзя безопасно связать с новыми UID. При переходе игроки
 создают новый профиль. Старые документы остаются в базе. Если нужно сохранить
