@@ -44,6 +44,17 @@ export function randomId(prefix = "u") {
   return `${prefix}_${hex}`;
 }
 
+export function randomInt(max) {
+  const limit = Math.max(1, Math.floor(max));
+  const bytes = crypto.getRandomValues(new Uint32Array(1));
+  return bytes[0] % limit;
+}
+
+export function randomFloat() {
+  const bytes = crypto.getRandomValues(new Uint32Array(1));
+  return bytes[0] / 4294967296;
+}
+
 export async function sha256Hex(text) {
   const data = new TextEncoder().encode(text);
   const digest = await crypto.subtle.digest("SHA-256", data);
@@ -136,6 +147,99 @@ export function fmtPct(n) {
   const v = Number(n) || 0;
   const text = v.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${v > 0 ? "+" : ""}${text}%`;
+}
+
+export function fmtDateLong(ts) {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  });
+}
+
+export function fmtDateTime(ts) {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+// ---------- ranks ----------
+export const RANKS = [
+  { level: 0, name: "Новичок", numeral: "I", color: "#9E7EB5", hint: "Стартовый ранг" },
+  { level: 1, name: "Житель", numeral: "II", color: "#C4A4DA", hint: "Активный участник" },
+  { level: 2, name: "Ветеран", numeral: "III", color: "#b98ee0", hint: "Проверенный временем" },
+  { level: 3, name: "Элита", numeral: "IV", color: "#d9a7f0", hint: "Доступ к созданию NFT" },
+  { level: 4, name: "Легенда", numeral: "V", color: "#e7d6f5", hint: "Особый статус сообщества" },
+  { level: 5, name: "Архитектор", numeral: "VI", color: "#ffffff", hint: "Высший ранг CharMsg" }
+];
+export const MAX_RANK = RANKS.length - 1;
+export const NFT_MIN_RANK = 3;
+
+export function rankOf(user) {
+  return clamp(Number(user?.rank) || 0, 0, MAX_RANK);
+}
+
+export function rankInfo(level) {
+  return RANKS[clamp(Number(level) || 0, 0, MAX_RANK)];
+}
+
+export function rankBadge(level, { compact = false } = {}) {
+  const info = rankInfo(level);
+  if (compact) {
+    return `<span class="rank-badge rank-compact" style="--rank-color:${info.color}" title="Ранг: ${escapeHtml(info.name)}">${escapeHtml(info.numeral)}</span>`;
+  }
+  return `<span class="rank-badge" style="--rank-color:${info.color}" title="Ранг: ${escapeHtml(info.name)}">${escapeHtml(info.name)}</span>`;
+}
+
+export function verifiedBadge(verified, { compact = false } = {}) {
+  if (!verified) return "";
+  return `<span class="verified-tag${compact ? " compact" : ""}" title="Верифицирован администратором">✓</span>`;
+}
+
+// ---------- image files ----------
+export function imageFileToDataUrl(file, { maxW = 900, maxH = 900, quality = 0.8, crop = false } = {}) {
+  return new Promise((resolve, reject) => {
+    if (!file || !String(file.type || "").startsWith("image/")) {
+      reject(new Error("Выберите изображение"));
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      reject(new Error("Файл больше 8 МБ"));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Не удалось прочитать файл"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Не удалось открыть изображение"));
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (crop) {
+          canvas.width = maxW;
+          canvas.height = maxH;
+          const scale = Math.max(maxW / img.width, maxH / img.height);
+          const w = img.width * scale;
+          const h = img.height * scale;
+          ctx.drawImage(img, (maxW - w) / 2, (maxH - h) / 2, w, h);
+        } else {
+          const scale = Math.min(1, maxW / img.width, maxH / img.height);
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        }
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 // ---------- avatars ----------

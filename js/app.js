@@ -1,23 +1,30 @@
 import {
+  banForScreenshot,
   currentUid,
   ensureMarket,
+  expireBanIfNeeded,
   subscribeChats,
+  subscribeCasino,
   subscribeMarket,
+  subscribeNfts,
+  subscribePastes,
   subscribeProfile,
   subscribeTrades,
   subscribeUsers,
   tickMarket,
   verifyAdminSession,
-  createProfile,
-  deviceUid
+  createProfile
 } from "./store.js";
 import { state, notify, onChange } from "./state.js";
-import { openAdminLoginModal, openModal } from "./ui.js";
+import { openAdminLoginModal, openModal, openPlayerLoginModal } from "./ui.js";
 import { avatarData, escapeHtml, fmtNum, nickHtml, toast } from "./util.js";
 import { mountChats } from "./views/chats.js";
+import { mountCasino } from "./views/casino.js";
 import { mountMarket } from "./views/market.js";
+import { mountPastes } from "./views/pastes.js";
 import { mountProfile } from "./views/profile.js";
 import { mountAdmin } from "./views/admin.js";
+import { mountBan } from "./views/ban.js";
 
 const viewEl = document.getElementById("view");
 const bootEl = document.getElementById("boot");
@@ -33,9 +40,12 @@ window.__charmsg = state;
 
 const routes = {
   chats: mountChats,
+  casino: mountCasino,
   market: mountMarket,
+  pastes: mountPastes,
   profile: mountProfile,
-  admin: mountAdmin
+  admin: mountAdmin,
+  ban: mountBan
 };
 
 let cleanupView = null;
@@ -43,20 +53,35 @@ let onboardingOpen = false;
 
 function currentRoute() {
   const raw = location.hash.replace(/^#\/?/, "").split("?")[0] || "chats";
-  return routes[raw] ? raw : "chats";
+  return Object.hasOwn(routes, raw) ? raw : "chats";
 }
 
 function updateNav() {
   const route = state.route;
+  const banned = !!state.profile?.banned;
+  document.body.classList.toggle("is-banned", banned);
   document.querySelectorAll(".nav-link").forEach((a) => a.classList.toggle("active", a.dataset.route === route));
   document.querySelectorAll(".tabbar a").forEach((a) => a.classList.toggle("active", a.dataset.route === route));
-  navAdmin.hidden = !state.admin;
-  tabAdmin.hidden = !state.admin;
-  adminEntryBtn.hidden = state.admin;
+  navAdmin.hidden = !state.admin || banned;
+  tabAdmin.hidden = !state.admin || banned;
+  adminEntryBtn.hidden = state.admin || banned;
 }
 
 function renderRoute() {
-  const route = currentRoute();
+  let route = currentRoute();
+  if (state.profile?.banned && route !== "ban") {
+    if (location.hash !== "#/ban") {
+      location.hash = "#/ban";
+      return;
+    }
+    route = "ban";
+  } else if (!state.profile?.banned && route === "ban") {
+    if (location.hash !== "#/chats") {
+      location.hash = "#/chats";
+      return;
+    }
+    route = "chats";
+  }
   if (state.route === route && cleanupView) {
     updateNav();
     return;
@@ -169,11 +194,12 @@ function showOnboarding() {
          </div>
        </div>
        <div class="error-text" id="onboardError"></div>
-       <button class="btn btn-primary btn-block" type="submit" id="onboardSubmit">Войти анонимно</button>
+       <button class="btn btn-primary btn-block" type="submit" id="onboardSubmit">Создать анонимный профиль</button>
+       <button class="btn btn-ghost btn-block" id="existingPlayerLogin" type="button" style="margin-top:8px">Войти по логину и паролю</button>
      </form>
      <div class="onboard-note">
        <svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
-       <span>Личность привязана только к этому браузеру. Мы не собираем почту, телефон и соцсети. Сообщения хранятся в Google Firestore и исчезают по таймеру.</span>
+       <span>Для входа с другого устройства сохраните логин и пароль в профиле. Мы не собираем почту и телефон. Сообщения хранятся в Google Firestore и исчезают по таймеру.</span>
      </div>`,
     {
       onClose: () => {
@@ -183,6 +209,9 @@ function showOnboarding() {
     }
   );
 
+  modal.body.querySelector("#existingPlayerLogin").addEventListener("click", () => {
+    openPlayerLoginModal();
+  });
   const nickEl = modal.body.querySelector("#onboardNick");
   const bioEl = modal.body.querySelector("#onboardBio");
   const avatarPreview = modal.body.querySelector("#onboardAvatar");
@@ -222,7 +251,7 @@ function showOnboarding() {
     submit.disabled = true;
     submit.textContent = "Создаём профиль…";
     try {
-      await createProfile(deviceUid, { nick: nickEl.value, bio: bioEl.value, avatar: avatarValue });
+      await createProfile(state.uid, { nick: nickEl.value, bio: bioEl.value, avatar: avatarValue });
       toast("Профиль создан. Добро пожаловать!", "success");
       onboardingOpen = false;
       modal.close();
@@ -231,7 +260,7 @@ function showOnboarding() {
     } catch (err) {
       errorEl.textContent = err.message || "Не удалось создать профиль";
       submit.disabled = false;
-      submit.textContent = "Войти анонимно";
+      submit.textContent = "Создать анонимный профиль";
     }
   });
   setTimeout(() => nickEl.focus(), 80);
@@ -250,7 +279,9 @@ function wireHeader() {
 function startMarketLoop() {
   ensureMarket().catch((err) => console.warn("ensureMarket failed", err));
   const tick = () => {
-    if (document.visibilityState === "visible") tickMarket();
+    if (document.visibilityState === "visible" && state.profile && !state.profile.banned) {
+      tickMarket().catch((err) => console.warn("market tick failed", err));
+    }
   };
   setTimeout(tick, 2200);
   setInterval(tick, 11_000);
@@ -261,8 +292,11 @@ let firstProfile = true;
 async function boot() {
   try {
     state.admin = await verifyAdminSession();
-  } catch {
-    state.admin = false;
+  } catch (error) {
+    console.error("Firebase authentication failed", error);
+    toast("Не удалось войти в CharMsg. Проверьте подключение и обновите страницу.", "error");
+    hideBoot();
+    return;
   }
   state.uid = currentUid();
 
@@ -270,10 +304,106 @@ async function boot() {
   updateHeader();
   startMarketLoop();
 
+  let loaded = false;
+  let banTimer;
+  function watchBan(profile) {
+    clearTimeout(banTimer);
+    if (!profile?.banned || !(profile.banUntil > 0)) return;
+    const remaining = profile.banUntil - Date.now();
+    if (remaining > 0) {
+      banTimer = setTimeout(() => watchBan(profile), Math.min(remaining, 2_147_483_647));
+      return;
+    }
+    expireBanIfNeeded(state.uid, profile)
+      .then((expired) => {
+        if (expired) toast("Срок блокировки истёк. Доступ восстановлен.", "success");
+        else if (state.profile === profile) banTimer = setTimeout(() => watchBan(profile), 30_000);
+      })
+      .catch((error) => {
+        console.warn("ban expiry failed", error);
+        if (state.profile === profile) banTimer = setTimeout(() => watchBan(profile), 30_000);
+      });
+  }
+  let subscriptions = [];
+  function subscribeData() {
+    subscriptions.push(subscribeUsers(
+      (users) => {
+        state.users = new Map(users.map((u) => [u.uid || u.id, u]));
+        notify();
+      },
+      (err) => console.warn("users subscription", err)
+    ));
+
+    subscriptions.push(subscribeChats(
+      state.uid,
+      (chats) => {
+        state.chats = chats;
+        notify();
+      },
+      (err) => {
+        console.error("chats subscription", err);
+        toast("Не удалось загрузить чаты", "error");
+      }
+    ));
+
+    subscriptions.push(subscribeMarket(
+      (market) => {
+        state.market = market;
+        notify();
+      },
+      (err) => console.warn("market subscription", err)
+    ));
+
+    subscriptions.push(subscribeTrades(
+      (trades) => {
+        state.trades = trades;
+        notify();
+      },
+      (err) => console.warn("trades subscription", err)
+    ));
+
+    subscriptions.push(subscribeCasino(
+      (plays) => {
+        state.casino = plays;
+        notify();
+      },
+      (err) => console.warn("casino subscription", err)
+    ));
+
+    subscriptions.push(subscribePastes(
+      (pastes) => {
+        state.pastes = pastes;
+        notify();
+      },
+      (err) => console.warn("pastes subscription", err)
+    ));
+
+    subscriptions.push(subscribeNfts(
+      (nfts) => {
+        state.nfts = nfts;
+        notify();
+      },
+      (err) => console.warn("nfts subscription", err)
+    ));
+  }
+
   subscribeProfile(
     state.uid,
     (profile) => {
       state.profile = profile;
+      const active = !!profile && !profile.banned;
+      if (active !== loaded) {
+        for (const unsubscribe of subscriptions) unsubscribe();
+        subscriptions = [];
+        loaded = active;
+        if (active) subscribeData();
+        else {
+          state.users = new Map();
+          for (const name of ["chats", "pastes", "nfts", "trades", "casino"]) state[name] = [];
+          state.market = null;
+        }
+      }
+      watchBan(profile);
       if (firstProfile) {
         firstProfile = false;
         hideBoot();
@@ -282,48 +412,17 @@ async function boot() {
       if (!profile) showOnboarding();
       updateHeader();
       notify();
+      if (profile?.banned && currentRoute() !== "ban") {
+        location.hash = "#/ban";
+      } else if (profile && !profile.banned && currentRoute() === "ban") {
+        location.hash = "#/chats";
+      }
     },
     (err) => {
       console.error("profile subscription", err);
       toast("Нет доступа к профилю в Firestore", "error");
       hideBoot();
     }
-  );
-
-  subscribeUsers(
-    (users) => {
-      state.users = new Map(users.map((u) => [u.uid || u.id, u]));
-      notify();
-    },
-    (err) => console.warn("users subscription", err)
-  );
-
-  subscribeChats(
-    state.uid,
-    (chats) => {
-      state.chats = chats;
-      notify();
-    },
-    (err) => {
-      console.error("chats subscription", err);
-      toast("Не удалось загрузить чаты", "error");
-    }
-  );
-
-  subscribeMarket(
-    (market) => {
-      state.market = market;
-      notify();
-    },
-    (err) => console.warn("market subscription", err)
-  );
-
-  subscribeTrades(
-    (trades) => {
-      state.trades = trades;
-      notify();
-    },
-    (err) => console.warn("trades subscription", err)
   );
 
   if (!location.hash) {
@@ -347,4 +446,54 @@ window.addEventListener("unhandledrejection", (e) => {
   console.error("unhandled", e.reason);
 });
 
+// Best-effort screenshot guard: browsers cannot see OS-level screenshots, so we
+// intercept the keys that are observable (PrintScreen and desktop shortcuts).
+let screenshotFired = false;
+async function onScreenshotDetected(source) {
+  if (screenshotFired) return;
+  const profile = state.profile;
+  if (!profile || profile.isAdmin || state.admin || profile.banned) return;
+  screenshotFired = true;
+  try {
+    await banForScreenshot(state.uid);
+    toast("Скриншот обнаружен. Аккаунт заблокирован навсегда.", "error", 6500);
+    location.hash = "#/ban";
+  } catch (err) {
+    screenshotFired = false;
+    console.warn("screenshot ban failed", source, err);
+  }
+}
+
+function initScreenshotGuard() {
+  const isPrintScreen = (e) => e.key === "PrintScreen" || e.code === "PrintScreen";
+  window.addEventListener(
+    "keydown",
+    (e) => {
+      if (isPrintScreen(e)) {
+        e.preventDefault();
+        void onScreenshotDetected("printscreen");
+        return;
+      }
+      const macShot = e.metaKey && e.shiftKey && ["3", "4", "5"].includes(e.key);
+      const desktopShot = e.ctrlKey && e.shiftKey && String(e.key).toLowerCase() === "s";
+      if (macShot || desktopShot) {
+        e.preventDefault();
+        void onScreenshotDetected("shortcut");
+      }
+    },
+    true
+  );
+  window.addEventListener(
+    "keyup",
+    (e) => {
+      if (isPrintScreen(e)) {
+        e.preventDefault();
+        void onScreenshotDetected("printscreen");
+      }
+    },
+    true
+  );
+}
+
+initScreenshotGuard();
 boot();

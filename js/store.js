@@ -1,3 +1,4 @@
+import { auth, adminAuth, EmailAuthProvider, linkWithCredential, signInAnonymously, signInWithEmailAndPassword, signOut, runAction } from "./db.js";
 import {
   db,
   collection,
@@ -12,101 +13,178 @@ import {
   where,
   orderBy,
   limit,
-  limitToLast,
   runTransaction,
   getCountFromServer
 } from "./db.js";
-import { randomId, sha256Hex, loadJSON, saveJSON } from "./util.js";
+import {
+  MAX_RANK,
+  NFT_MIN_RANK,
+  clamp,
+  rankOf
+} from "./util.js";
 
 export const DAY = 86_400_000;
 export const ADMIN_UID = "admin_farnaz";
 export const ADMIN_LOGIN = "farnaz";
-const ADMIN_SESSION_KEY = "charmsg_admin_session";
-const UID_KEY = "charmsg_device_uid";
+
+export const BAN_IMAGE = "./assets/ban.jpg";
+export const SCREENSHOT_BAN_REASON =
+  "Обнаружена попытка сделать скриншот экрана. Правила CharMsg запрещают сохранять переписку, профили и закрытый контент: это нарушает анонимность участников.";
+
+export const NFT_EFFECTS = [
+  { key: "none", name: "Без эффекта", css: "" },
+  { key: "glow", name: "Свечение", css: "fx-glow" },
+  { key: "holo", name: "Голограмма", css: "fx-holo" },
+  { key: "pulse", name: "Пульс", css: "fx-pulse" },
+  { key: "fire", name: "Пламя", css: "fx-fire" },
+  { key: "void", name: "Бездна", css: "fx-void" }
+];
+
+export function effectClass(key) {
+  return NFT_EFFECTS.find((e) => e.key === key)?.css || "";
+}
+
+export function canAccessChat(chat, profile) {
+  if (!chat?.verifiedOnly) return true;
+  return !!profile?.verified || !!profile?.isAdmin;
+}
+
+export function canCreateNft(profile) {
+  return !!profile && (!!profile.isAdmin || rankOf(profile) >= NFT_MIN_RANK);
+}
+
+// European roulette red pockets.
+const ROULETTE_RED = new Set([
+  1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36
+]);
+
+export function rouletteColor(number) {
+  const n = Number(number);
+  if (n === 0) return "green";
+  return ROULETTE_RED.has(n) ? "red" : "black";
+}
+
+export const CASINO_MIN_BET = 1;
+export const CASINO_MAX_BET = 100_000;
+export const UPGRADE_MIN_CHANCE = 0.02;
+export const UPGRADE_MAX_CHANCE = 0.95;
 
 export const RESERVED_NICKS = ["farnaz", "admin", "charmsg", "system", "support", "админ", "модератор"];
 
 // ---------------- identity ----------------
-function loadDeviceUid() {
-  let uid = localStorage.getItem(UID_KEY);
-  if (!uid) {
-    uid = randomId("u");
-    localStorage.setItem(UID_KEY, uid);
-  }
-  return uid;
-}
-
-export const deviceUid = loadDeviceUid();
+let adminSession = false;
 
 export function getAdminSession() {
-  const session = loadJSON(ADMIN_SESSION_KEY, null);
-  if (!session || !session.hash || !session.exp || session.exp < Date.now()) return null;
-  return session;
-}
-
-export function isAdminSession() {
-  return !!getAdminSession();
+  return adminSession;
 }
 
 export function currentUid() {
-  return isAdminSession() ? ADMIN_UID : deviceUid;
+  return auth.currentUser?.uid;
 }
 
 export async function verifyAdminSession() {
-  const session = getAdminSession();
-  if (!session) return false;
-  try {
-    const snap = await getDoc(doc(db, "config", "admin"));
-    if (!snap.exists() || snap.data().hash !== session.hash) {
-      localStorage.removeItem(ADMIN_SESSION_KEY);
-      return false;
+  await auth.authStateReady();
+  if (auth === adminAuth) {
+    const token = await auth.currentUser?.getIdTokenResult();
+    if (token?.claims.admin === true && auth.currentUser.uid === ADMIN_UID) {
+      adminSession = true;
+      await runAction("ensureAdminProfile");
+      return true;
     }
-    return true;
-  } catch {
-    return false;
+    localStorage.removeItem("charmsg_admin_mode");
+    location.reload();
+    throw new Error("Сессия администратора завершена");
   }
+  if (!auth.currentUser) await signInAnonymously(auth);
+  return false;
+}
+
+const PLAYER_LOGIN_DOMAIN = "@players.charmsg.invalid";
+
+function playerEmail(login) {
+  const value = login.trim().toLowerCase();
+  if (!/^[a-z0-9_-]{3,24}$/.test(value)) {
+    throw new Error("Логин должен содержать 3–24 латинские буквы, цифры, дефисы или подчёркивания");
+  }
+  return value + PLAYER_LOGIN_DOMAIN;
+}
+
+export function linkedPlayerLogin() {
+  const email = auth.currentUser?.email;
+  return email?.endsWith(PLAYER_LOGIN_DOMAIN) ? email.slice(0, -PLAYER_LOGIN_DOMAIN.length) : "";
+}
+
+export async function savePlayerLogin(login, password) {
+  const email = playerEmail(login);
+  if (password.length < 12) throw new Error("Пароль должен содержать не менее 12 символов");
+  const user = auth.currentUser;
+  if (auth === adminAuth || !user?.isAnonymous) throw new Error("Для этого профиля пароль уже задан");
+  try {
+    await linkWithCredential(user, EmailAuthProvider.credential(email, password));
+  } catch (error) {
+    if (error.code === "auth/email-already-in-use" || error.code === "auth/credential-already-in-use") {
+      throw new Error("Логин занят. Выберите другой");
+    }
+    throw new Error("Не удалось сохранить логин и пароль. Проверьте подключение и попробуйте снова");
+  }
+}
+
+export async function signInPlayer(login, password) {
+  const email = playerEmail(login);
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    if (error.code === "auth/network-request-failed") throw new Error("Не удалось подключиться. Попробуйте снова");
+    if (error.code === "auth/too-many-requests") throw new Error("Слишком много попыток. Попробуйте позже");
+    throw new Error("Неверный логин или пароль");
+  }
+}
+
+export async function signOutPlayer() {
+  await signOut(auth);
 }
 
 export async function adminLogin(login, password) {
-  const cleanLogin = String(login || "").trim().toLowerCase();
-  const snap = await getDoc(doc(db, "config", "admin"));
-  if (!snap.exists()) throw new Error("Конфигурация админа не найдена в Firestore");
-  const cfg = snap.data();
-  if (cleanLogin !== String(cfg.login || "").toLowerCase()) throw new Error("Неверный логин или пароль");
-  const hash = await sha256Hex(`${cfg.salt || "charmsg"}::${cleanLogin}::${password}`);
-  if (hash !== cfg.hash) throw new Error("Неверный логин или пароль");
-  const session = { hash, exp: Date.now() + 12 * 3600 * 1000 };
-  saveJSON(ADMIN_SESSION_KEY, session);
-  await ensureAdminProfile();
-  return session;
-}
-
-export function adminLogout() {
-  localStorage.removeItem(ADMIN_SESSION_KEY);
-}
-
-export async function ensureAdminProfile() {
-  const ref = doc(db, "users", ADMIN_UID);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      uid: ADMIN_UID,
-      nick: "farnaz",
-      nickLower: "farnaz",
-      bio: "Создатель CharMsg. Анонимность — это свобода.",
-      avatar: "./assets/logo.jpg",
-      isAdmin: true,
-      coins: 100,
-      chr: 0,
-      chrCost: 0,
-      banned: false,
-      msgCount: 0,
-      createdAt: Date.now(),
-      lastSeen: Date.now()
-    });
-  } else {
-    await setDoc(ref, { isAdmin: true, nick: "farnaz", nickLower: "farnaz", banned: false }, { merge: true });
+  if (String(login).trim().toLowerCase() !== ADMIN_LOGIN) throw new Error("Неверный логин или пароль");
+  const { user } = await signInWithEmailAndPassword(adminAuth, "farnaz@charmsg.invalid", password);
+  const token = await user.getIdTokenResult(true);
+  if (user.uid !== ADMIN_UID || token.claims.admin !== true) {
+    await signOut(adminAuth);
+    throw new Error("У аккаунта нет прав администратора");
   }
+  localStorage.setItem("charmsg_admin_mode", "1");
+}
+
+export async function adminLogout() {
+  await signOut(adminAuth);
+  localStorage.removeItem("charmsg_admin_mode");
+}
+
+function subscribeAction(action, args, cb, onError, interval) {
+  let active = true;
+  let timer;
+  let previous;
+  async function refresh() {
+    try {
+      const value = await runAction(action, ...args);
+      if (!active) return;
+      const snapshot = JSON.stringify(value);
+      if (snapshot !== previous) {
+        previous = snapshot;
+        cb(value);
+      }
+    } catch (error) {
+      if (active) {
+        if (previous !== undefined) cb([]);
+        previous = undefined;
+        onError?.(error);
+      }
+    } finally {
+      if (active) timer = setTimeout(refresh, interval);
+    }
+  }
+  refresh();
+  return () => { active = false; clearTimeout(timer); };
 }
 
 // ---------------- profiles ----------------
@@ -126,45 +204,21 @@ export async function isNickTaken(nick, exceptUid = "") {
   return snap.docs.some((d) => d.id !== exceptUid);
 }
 
-export async function createProfile(uid, { nick, bio = "", avatar = "" }) {
-  const error = validateNick(nick);
-  if (error) throw new Error(error);
-  if (await isNickTaken(nick, uid)) throw new Error("Этот ник уже занят");
-  const cleanNick = String(nick).trim();
-  const data = {
-    uid,
-    nick: cleanNick,
-    nickLower: cleanNick.toLowerCase(),
-    bio: String(bio || "").slice(0, 240),
-    avatar: String(avatar || ""),
-    isAdmin: uid === ADMIN_UID,
-    coins: 100,
-    chr: 0,
-    chrCost: 0,
-    banned: false,
-    msgCount: 0,
-    seen: {},
-    createdAt: Date.now(),
-    lastSeen: Date.now()
-  };
-  await setDoc(doc(db, "users", uid), data);
-  return data;
+export async function createProfile(uid, data) {
+  return runAction("createProfile", data);
 }
 
-export async function updateProfile(uid, { nick, bio, avatar }) {
-  const error = validateNick(nick);
-  if (error) throw new Error(error);
-  if (await isNickTaken(nick, uid)) throw new Error("Этот ник уже занят");
-  const cleanNick = String(nick).trim();
-  const patch = {
-    nick: cleanNick,
-    nickLower: cleanNick.toLowerCase(),
-    bio: String(bio || "").slice(0, 240),
-    avatar: String(avatar || ""),
-    lastSeen: Date.now()
-  };
-  await updateDoc(doc(db, "users", uid), patch);
-  return patch;
+export async function updateProfile(uid, data) {
+  return runAction("updateProfile", data);
+}
+
+export async function findUserByNick(nick) {
+  const nickLower = String(nick || "").trim().toLowerCase();
+  if (!nickLower) return null;
+  const snap = await getDocs(query(collection(db, "users"), where("nickLower", "==", nickLower), limit(1)));
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
 }
 
 export async function fetchUser(uid) {
@@ -174,11 +228,20 @@ export async function fetchUser(uid) {
 }
 
 export function subscribeProfile(uid, cb, onError) {
-  return onSnapshot(
-    doc(db, "users", uid),
-    (snap) => cb(snap.exists() ? { id: snap.id, ...snap.data() } : null),
-    onError
-  );
+  let profile;
+  let seen;
+  const emit = () => {
+    if (profile !== undefined) cb(profile ? { ...profile, seen: seen || {} } : null);
+  };
+  const unsubscribeProfile = onSnapshot(doc(db, "users", uid), (snap) => {
+    profile = snap.exists() ? { ...snap.data(), id: snap.id } : null;
+    emit();
+  }, onError);
+  const unsubscribeSeen = onSnapshot(doc(db, "users", uid, "preferences", "seen"), (snap) => {
+    seen = snap.data()?.chats;
+    emit();
+  }, () => {});
+  return () => { unsubscribeProfile(); unsubscribeSeen(); };
 }
 
 export function subscribeUsers(cb, onError, max = 400) {
@@ -191,164 +254,44 @@ export function subscribeUsers(cb, onError, max = 400) {
 
 // ---------------- chats ----------------
 export function subscribeChats(uid, cb, onError) {
-  let publicChats = [];
-  let memberChats = [];
-  const emit = () => {
-    const map = new Map();
-    for (const chat of [...publicChats, ...memberChats]) map.set(chat.id, chat);
-    const all = [...map.values()].sort(
-      (a, b) => (b.lastMessageAt || b.createdAt || 0) - (a.lastMessageAt || a.createdAt || 0)
-    );
-    cb(all);
-  };
-  const unsubPublic = onSnapshot(
-    query(collection(db, "chats"), where("isPublic", "==", true)),
-    (snap) => {
-      publicChats = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      emit();
-    },
-    onError
-  );
-  const unsubDm = onSnapshot(
-    query(collection(db, "chats"), where("members", "array-contains", uid)),
-    (snap) => {
-      memberChats = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => !c.isPublic);
-      emit();
-    },
-    onError
-  );
-  return () => {
-    unsubPublic();
-    unsubDm();
-  };
+  return subscribeAction("listChats", [], cb, onError, 5000);
 }
 
-export async function createPublicChat({ name, desc = "", emoji = "💬", ttl = DAY, uid }) {
-  const cleanName = String(name || "").trim().slice(0, 40);
-  if (cleanName.length < 2) throw new Error("Название чата слишком короткое");
-  const ref = doc(collection(db, "chats"));
-  await setDoc(ref, {
-    name: cleanName,
-    desc: String(desc || "").slice(0, 160),
-    emoji: String(emoji || "💬").slice(0, 8),
-    ttl: Number(ttl) || DAY,
-    isPublic: true,
-    isDM: false,
-    members: [],
-    createdBy: uid,
-    createdAt: Date.now(),
-    lastMessage: "",
-    lastMessageAt: 0,
-    lastSender: ""
-  });
-  return ref.id;
+export async function createPublicChat(data) {
+  return runAction("createPublicChat", data);
 }
 
 export async function openDM(meUid, otherUid) {
-  if (!meUid || !otherUid) throw new Error("Не удалось открыть личный чат");
-  if (meUid === otherUid) throw new Error("Нельзя написать самому себе");
-  const members = [meUid, otherUid].sort();
-  const chatId = `dm_${members.join("_")}`;
-  const ref = doc(db, "chats", chatId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      name: "Личный чат",
-      desc: "",
-      emoji: "✉️",
-      ttl: 7 * DAY,
-      isPublic: false,
-      isDM: true,
-      members,
-      createdBy: meUid,
-      createdAt: Date.now(),
-      lastMessage: "",
-      lastMessageAt: 0,
-      lastSender: ""
-    });
-  }
-  return chatId;
+  return runAction("openDM", otherUid);
 }
 
 export async function updateChatTtl(chatId, ttl) {
-  await updateDoc(doc(db, "chats", chatId), { ttl: Number(ttl) || DAY });
+  return runAction("updateChatTtl", chatId, ttl);
 }
 
 export async function deleteChat(chatId) {
-  const msgs = await getDocs(query(collection(db, "chats", chatId, "messages"), limit(300)));
-  await Promise.all(msgs.docs.map((d) => deleteDoc(d.ref)));
-  await deleteDoc(doc(db, "chats", chatId));
+  return runAction("deleteChat", chatId);
 }
 
 export function subscribeMessages(chatId, cb, onError) {
-  const q = query(
-    collection(db, "chats", chatId, "messages"),
-    orderBy("createdAt", "asc"),
-    limitToLast(300)
-  );
-  return onSnapshot(
-    q,
-    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-    onError
-  );
+  return subscribeAction("listMessages", [chatId], cb, onError, 2500);
 }
 
 export async function sendMessage(chat, profile, text) {
-  const value = String(text || "").trim();
-  if (!value) throw new Error("Сообщение пустое");
-  if (value.length > 1500) throw new Error("Максимум 1500 символов");
-  if (profile?.banned) throw new Error("Ваш аккаунт заблокирован");
-  const now = Date.now();
-  const ttl = Number(chat.ttl) || DAY;
-  const msgRef = doc(collection(db, "chats", chat.id, "messages"));
-  const batch = [];
-  batch.push(
-    setDoc(msgRef, {
-      uid: profile.uid,
-      nick: profile.nick,
-      isAdmin: !!profile.isAdmin,
-      text: value,
-      createdAt: now,
-      expiresAt: now + ttl
-    })
-  );
-  batch.push(
-    updateDoc(doc(db, "chats", chat.id), {
-      lastMessage: value.slice(0, 140),
-      lastMessageAt: now,
-      lastSender: profile.uid
-    })
-  );
-  batch.push(
-    updateDoc(doc(db, "users", profile.uid), {
-      msgCount: (Number(profile.msgCount) || 0) + 1,
-      lastSeen: now
-    }).catch(() => {})
-  );
-  await Promise.all(batch);
-  return { id: msgRef.id, createdAt: now, expiresAt: now + ttl };
+  return runAction("sendMessage", chat.id, text);
 }
 
 export async function deleteMessage(chatId, messageId) {
-  await deleteDoc(doc(db, "chats", chatId, "messages", messageId));
+  return runAction("deleteMessage", chatId, messageId);
 }
 
 export async function purgeExpiredMessages(chatId, max = 40) {
-  const now = Date.now();
-  const snap = await getDocs(
-    query(
-      collection(db, "chats", chatId, "messages"),
-      where("expiresAt", "<", now),
-      limit(max)
-    )
-  );
-  await Promise.all(snap.docs.map((d) => deleteDoc(d.ref).catch(() => {})));
-  return snap.size;
+  return runAction("purgeExpiredMessages", chatId, max);
 }
 
 export async function markSeen(uid, chatId) {
   try {
-    await setDoc(doc(db, "users", uid), { seen: { [chatId]: Date.now() } }, { merge: true });
+    await setDoc(doc(db, "users", uid, "preferences", "seen"), { chats: { [chatId]: Date.now() } }, { merge: true });
   } catch {
     /* non critical */
   }
@@ -359,20 +302,7 @@ const MARKET_REF = () => doc(db, "market", "state");
 export const BOT_NAMES = ["Nova", "Kryptos", "Pixel", "Void", "Astra", "Neon", "Orion", "Lumen", "Echo", "Nyx"];
 
 export async function ensureMarket() {
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(MARKET_REF());
-    if (!snap.exists()) {
-      tx.set(MARKET_REF(), {
-        price: 100,
-        history: [{ t: Date.now(), p: 100 }],
-        volume: 0,
-        lastTick: 0,
-        bots: true,
-        liq: 12000,
-        floor: 1
-      });
-    }
-  });
+  return runAction("ensureMarket");
 }
 
 export function subscribeMarket(cb, onError) {
@@ -387,144 +317,12 @@ export function subscribeTrades(cb, onError) {
   );
 }
 
-function pushHistory(history, price, now) {
-  const list = Array.isArray(history) ? [...history] : [];
-  const last = list[list.length - 1];
-  if (last && now - last.t < 3500) list[list.length - 1] = { t: now, p: price };
-  else list.push({ t: now, p: price });
-  return list.slice(-90);
+export async function trade(uid, side, amount) {
+  return runAction("trade", side, amount);
 }
 
-export async function trade(uid, side, rawAmount) {
-  const amount = Number(rawAmount);
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Введите сумму больше нуля");
-  return runTransaction(db, async (tx) => {
-    const marketSnap = await tx.get(MARKET_REF());
-    if (!marketSnap.exists()) throw new Error("Рынок ещё не создан");
-    const userRef = doc(db, "users", uid);
-    const userSnap = await tx.get(userRef);
-    if (!userSnap.exists()) throw new Error("Профиль не найден");
-    const market = marketSnap.data();
-    const user = userSnap.data();
-    if (user.banned) throw new Error("Аккаунт заблокирован");
-    const now = Date.now();
-    const price = Math.max(1, Number(market.price) || 100);
-    const liq = Math.max(1000, Number(market.liq) || 12000);
-    let nextPrice;
-    let amountChr;
-    let amountCr;
-    let nextCoins;
-    let nextChr;
-    let nextCost;
-
-    if (side === "buy") {
-      amountCr = Math.min(amount, Number(user.coins) || 0);
-      if (amountCr < 1) throw new Error("Недостаточно CharCoin на балансе");
-      const impact = Math.min(amountCr / liq, 0.4);
-      amountChr = amountCr / (price * (1 + impact / 2));
-      nextPrice = price * (1 + impact);
-      nextCoins = (Number(user.coins) || 0) - amountCr;
-      nextChr = (Number(user.chr) || 0) + amountChr;
-      nextCost = (Number(user.chrCost) || 0) + amountCr;
-    } else {
-      amountChr = Math.min(amount, Number(user.chr) || 0);
-      if (amountChr <= 0) throw new Error("У вас нет CharCoin (CHR) для продажи");
-      amountCr = amountChr * price;
-      const impact = Math.min(amountCr / liq, 0.4);
-      amountCr = amountChr * price * (1 - impact / 2);
-      nextPrice = price * (1 - impact);
-      nextCoins = (Number(user.coins) || 0) + amountCr;
-      nextChr = (Number(user.chr) || 0) - amountChr;
-      const avg = Number(user.chr) > 0 ? (Number(user.chrCost) || 0) / Number(user.chr) : 0;
-      nextCost = Math.max(0, (Number(user.chrCost) || 0) - avg * amountChr);
-    }
-
-    nextPrice = Math.max(Number(market.floor) || 1, nextPrice);
-    const history = pushHistory(market.history, nextPrice, now);
-    const tradeRef = doc(collection(db, "trades"));
-
-    tx.update(userRef, {
-      coins: Math.round(nextCoins * 100) / 100,
-      chr: Math.round(nextChr * 1e6) / 1e6,
-      chrCost: Math.round(nextCost * 100) / 100,
-      lastTrade: now,
-      lastSeen: now
-    });
-    tx.update(MARKET_REF(), {
-      price: Math.round(nextPrice * 1000) / 1000,
-      volume: Math.round(((Number(market.volume) || 0) + amountCr) * 100) / 100,
-      lastTick: now,
-      history
-    });
-    tx.set(tradeRef, {
-      uid,
-      nick: user.nick || "Аноним",
-      isAdmin: !!user.isAdmin,
-      isBot: false,
-      side,
-      amountCr: Math.round(amountCr * 100) / 100,
-      amountChr: Math.round(amountChr * 1e6) / 1e6,
-      price: Math.round(nextPrice * 1000) / 1000,
-      ts: now
-    });
-
-    return {
-      side,
-      amountCr,
-      amountChr,
-      price: nextPrice,
-      coins: nextCoins,
-      chr: nextChr
-    };
-  });
-}
-
-let tickBusy = false;
 export async function tickMarket() {
-  if (tickBusy) return;
-  tickBusy = true;
-  try {
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(MARKET_REF());
-      if (!snap.exists()) return;
-      const market = snap.data();
-      if (market.bots === false) return;
-      const now = Date.now();
-      if (now - (Number(market.lastTick) || 0) < 9000) return;
-      const price = Math.max(1, Number(market.price) || 100);
-      const liq = Math.max(1000, Number(market.liq) || 12000);
-      const bot = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
-      const side = Math.random() < 0.52 ? "buy" : "sell";
-      const amountCr = 12 + Math.random() * 95;
-      const impact = Math.min(amountCr / liq, 0.25);
-      let nextPrice = side === "buy" ? price * (1 + impact * 0.8) : price * (1 - impact * 0.8);
-      nextPrice = Math.max(Number(market.floor) || 1, nextPrice * (1 + (Math.random() - 0.5) * 0.006));
-      const amountChr = amountCr / Math.max(price, 1);
-      const history = pushHistory(market.history, nextPrice, now);
-      const tradeRef = doc(collection(db, "trades"));
-      tx.update(MARKET_REF(), {
-        price: Math.round(nextPrice * 1000) / 1000,
-        volume: Math.round(((Number(market.volume) || 0) + amountCr) * 100) / 100,
-        lastTick: now,
-        history
-      });
-      tx.set(tradeRef, {
-        uid: `bot_${bot.toLowerCase()}`,
-        nick: bot,
-        isAdmin: false,
-        isBot: true,
-        side,
-        amountCr: Math.round(amountCr * 100) / 100,
-        amountChr: Math.round(amountChr * 1e6) / 1e6,
-        price: Math.round(nextPrice * 1000) / 1000,
-        ts: now
-      });
-    });
-  } catch (err) {
-    console.warn("market tick skipped:", err?.message || err);
-  } finally {
-    tickBusy = false;
-  }
+  return runAction("tickMarket");
 }
 
 // ---------------- admin ----------------
@@ -576,7 +374,48 @@ export async function adminGrantCoins(uid, amount) {
 }
 
 export async function adminSetBanned(uid, banned) {
-  await updateDoc(doc(db, "users", uid), { banned: !!banned });
+  if (banned) {
+    const now = Date.now();
+    await updateDoc(doc(db, "users", uid), {
+      banned: true,
+      banType: "admin",
+      banReason: "Аккаунт заблокирован администратором CharMsg за нарушение правил сообщества.",
+      banAt: now,
+      banYears: 0,
+      banUntil: 0,
+      banImage: BAN_IMAGE
+    });
+  } else {
+    await updateDoc(doc(db, "users", uid), {
+      banned: false,
+      banType: "",
+      banReason: "",
+      banAt: 0,
+      banYears: 0,
+      banUntil: 0,
+      banImage: ""
+    });
+  }
+}
+
+export async function adminBanUser(uid, options) {
+  return runAction("adminBanUser", uid, options);
+}
+
+export async function adminSetRank(uid, rank) {
+  await updateDoc(doc(db, "users", uid), { rank: clamp(Math.floor(Number(rank) || 0), 0, MAX_RANK) });
+}
+
+export async function adminSetVerified(uid, verified) {
+  await updateDoc(doc(db, "users", uid), { verified: !!verified });
+}
+
+export async function banForScreenshot(uid) {
+  return runAction("banForScreenshot");
+}
+
+export async function expireBanIfNeeded(uid, profile) {
+  return runAction("expireBanIfNeeded");
 }
 
 export async function adminDeleteUser(uid) {
@@ -610,32 +449,7 @@ export async function adminStats(chats) {
 }
 
 export async function adminBroadcast(chats, profile, text) {
-  const value = String(text || "").trim();
-  if (!value) throw new Error("Текст рассылки пуст");
-  const publicChats = chats.filter((c) => c.isPublic);
-  await Promise.all(
-    publicChats.map((chat) => {
-      const now = Date.now();
-      const ttl = Number(chat.ttl) || DAY;
-      const msgRef = doc(collection(db, "chats", chat.id, "messages"));
-      return Promise.all([
-        setDoc(msgRef, {
-          uid: profile.uid,
-          nick: profile.nick,
-          isAdmin: true,
-          text: value,
-          createdAt: now,
-          expiresAt: now + ttl
-        }),
-        updateDoc(doc(db, "chats", chat.id), {
-          lastMessage: value.slice(0, 140),
-          lastMessageAt: now,
-          lastSender: profile.uid
-        })
-      ]);
-    })
-  );
-  return publicChats.length;
+  return runAction("adminBroadcast", text);
 }
 
 export async function adminPurgeExpired(chats) {
@@ -650,4 +464,89 @@ export async function adminPurgeChat(chatId, max = 200) {
   const snap = await getDocs(query(collection(db, "chats", chatId, "messages"), limit(max)));
   await Promise.all(snap.docs.map((d) => deleteDoc(d.ref).catch(() => {})));
   return snap.size;
+}
+
+// ---------------- pastes ----------------
+export function subscribePastes(cb, onError) {
+  return subscribeAction("listPastes", [], cb, onError, 5000);
+}
+
+export function canEditPaste(paste, profile) {
+  if (!paste || !profile) return false;
+  if (profile.isAdmin) return true;
+  if (paste.authorUid === profile.uid) return true;
+  return (Array.isArray(paste.editors) ? paste.editors : []).includes(profile.uid);
+}
+
+export function pasteMinRank(paste) {
+  return clamp(Number(paste?.minRank) || 0, 0, MAX_RANK);
+}
+
+export function canViewPaste(paste, profile) {
+  if (!paste) return false;
+  if (profile?.isAdmin) return true;
+  if (canEditPaste(paste, profile)) return true;
+  return rankOf(profile) >= pasteMinRank(paste);
+}
+
+export async function createPaste(profile, data) {
+  return runAction("createPaste", data);
+}
+
+export async function savePaste(pasteId, profile, data) {
+  return runAction("savePaste", pasteId, data);
+}
+
+export async function setPastePublished(pasteId, published) {
+  return runAction("setPastePublished", pasteId, published);
+}
+
+export async function setPasteEditors(pasteId, editors) {
+  return runAction("setPasteEditors", pasteId, editors);
+}
+
+export async function deletePaste(pasteId) {
+  return runAction("deletePaste", pasteId);
+}
+
+// ---------------- nft ----------------
+export function subscribeNfts(cb, onError) {
+  return onSnapshot(
+    query(collection(db, "nfts"), orderBy("createdAt", "desc"), limit(200)),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    onError
+  );
+}
+
+// ---------------- casino ----------------
+export function subscribeCasino(cb, onError) {
+  return onSnapshot(
+    query(collection(db, "casino"), orderBy("createdAt", "desc"), limit(50)),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    onError
+  );
+}
+
+export async function spinRoulette(profile, data) {
+  return runAction("spinRoulette", data);
+}
+
+export async function playUpgrade(profile, data) {
+  return runAction("playUpgrade", data);
+}
+
+export async function createNft(profile, data) {
+  return runAction("createNft", data);
+}
+
+export async function setNftSale(nftId, profile, price) {
+  return runAction("setNftSale", nftId, price);
+}
+
+export async function buyNft(nftId, profile) {
+  return runAction("buyNft", nftId);
+}
+
+export async function deleteNft(nftId, profile) {
+  return runAction("deleteNft", nftId);
 }

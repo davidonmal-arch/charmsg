@@ -1,7 +1,9 @@
 import { state, onChange } from "../state.js";
-import { confirmDialog } from "../ui.js";
+import { confirmDialog, openModal } from "../ui.js";
 import {
   ADMIN_LOGIN,
+  BAN_IMAGE,
+  adminBanUser,
   adminBroadcast,
   adminDeleteUser,
   adminGrantCoins,
@@ -15,18 +17,25 @@ import {
   adminSetBots,
   adminSetLiquidity,
   adminSetPrice,
+  adminSetRank,
+  adminSetVerified,
   adminStats,
   deleteChat
 } from "../store.js";
 import {
+  RANKS,
   avatarData,
   escapeHtml,
   fmtNum,
   fmtRelative,
+  imageFileToDataUrl,
   nickHtml,
   plural,
+  rankBadge,
+  rankOf,
   ttlShort,
-  toast
+  toast,
+  verifiedBadge
 } from "../util.js";
 
 function loginHtml() {
@@ -120,8 +129,8 @@ export function mountAdmin(container) {
       </div>
       <div class="table-wrap">
         <table class="admin-table">
-          <thead><tr><th>Пользователь</th><th>CR</th><th>CHR</th><th>Сообщений</th><th>Статус</th><th>Действия</th></tr></thead>
-          <tbody id="usersBody"><tr><td colspan="6" class="muted">Загрузка…</td></tr></tbody>
+          <thead><tr><th>Пользователь</th><th>Ранг</th><th>Верификация</th><th>CR</th><th>CHR</th><th>Сообщений</th><th>Статус</th><th>Действия</th></tr></thead>
+          <tbody id="usersBody"><tr><td colspan="8" class="muted">Загрузка…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -217,7 +226,7 @@ export function mountAdmin(container) {
   function renderUsers() {
     const body = $("usersBody");
     if (!users.length) {
-      body.innerHTML = `<tr><td colspan="6" class="muted">Пользователей пока нет.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="8" class="muted">Пользователей пока нет.</td></tr>`;
       $("usersCount").textContent = "0";
       return;
     }
@@ -225,12 +234,21 @@ export function mountAdmin(container) {
     body.innerHTML = users
       .map((u) => {
         const uid = u.uid || u.id;
+        const rank = rankOf(u);
         return `<tr>
           <td><div class="user-cell">${avatarData(u.nick, u.avatar, 28)}<div><div class="${u.isAdmin ? "nick-admin" : "nick"}">${escapeHtml(u.nick || "Аноним")}</div><div class="hint" style="font-size:9px">${escapeHtml(uid)}</div></div></div></td>
+          <td>
+            <div class="row" style="gap:6px;flex-wrap:nowrap">${rankBadge(rank, { compact: true })}
+              <select class="select select-sm rank-select" data-rank="${escapeHtml(uid)}" title="Выдать ранг">
+                ${RANKS.map((r) => `<option value="${r.level}" ${r.level === rank ? "selected" : ""}>${r.name}</option>`).join("")}
+              </select>
+            </div>
+          </td>
+          <td><button class="btn btn-sm ${u.verified ? "" : "btn-ghost"}" data-action="verify" data-uid="${escapeHtml(uid)}" data-verified="${u.verified ? "1" : "0"}">${u.verified ? "✓ верифицирован" : "Верифицировать"}</button></td>
           <td class="mono">${fmtNum(u.coins || 0, 1)}</td>
           <td class="mono">${fmtNum(u.chr || 0, 3)}</td>
           <td class="mono">${fmtNum(u.msgCount || 0)}</td>
-          <td>${u.banned ? '<span class="badge" style="color:#e0a6bf">забанен</span>' : '<span class="badge">активен</span>'}</td>
+          <td>${u.banned ? `<span class="badge" style="color:#e0a6bf" title="${escapeHtml(u.banReason || "")}">${u.banType === "screenshot" ? "бан: скриншот" : "ручной бан"}${Number(u.banUntil) > 0 ? " · временно" : " · бессрочно"}</span>` : '<span class="badge">активен</span>'}</td>
           <td><div class="table-actions">
             <button class="btn btn-sm" data-action="ban" data-uid="${escapeHtml(uid)}" data-banned="${u.banned ? "1" : "0"}">${u.banned ? "Разбан" : "Бан"}</button>
             <button class="btn btn-sm" data-action="coins" data-uid="${escapeHtml(uid)}">+100 CR</button>
@@ -295,6 +313,140 @@ export function mountAdmin(container) {
     });
   });
 
+  function openBanModal(user) {
+    const uid = user.uid || user.id;
+    let banImage = "";
+    const modal = openModal(
+      `<button class="modal-close" data-close aria-label="Закрыть">×</button>
+       <h3 class="modal-title">Забанить пользователя</h3>
+       <p class="modal-sub">${escapeHtml(user.nick || "Аноним")} · <span class="mono">${escapeHtml(uid)}</span>. Укажите причину, срок и фото, которое увидит пользователь на странице бана.</p>
+
+       <div class="field">
+         <label for="banReason">Причина бана</label>
+         <textarea class="textarea" id="banReason" maxlength="600" rows="3" placeholder="Например: оскорбления, спам, обход правил…">${escapeHtml(user.banReason || "")}</textarea>
+       </div>
+
+       <div class="field" style="margin-top:14px">
+         <label for="banYears">Срок блокировки</label>
+         <div class="row" style="gap:8px">
+           <input class="input" id="banYears" type="number" min="0" step="1" value="0" style="max-width:140px" />
+           <select class="input" id="banUnit" aria-label="Единица срока">
+             <option value="minutes">Минуты</option>
+             <option value="hours">Часы</option>
+             <option value="days" selected>Дни</option>
+             <option value="years">Годы</option>
+           </select>
+           <span class="hint" style="align-self:center">0 — бессрочно</span>
+         </div>
+         <div class="quick-row" id="banQuick">
+           <button type="button" class="quick-btn" data-ban-years="0">Бессрочно</button>
+           <button type="button" class="quick-btn" data-ban-years="1">1 год</button>
+           <button type="button" class="quick-btn" data-ban-years="10">10 лет</button>
+           <button type="button" class="quick-btn" data-ban-years="80">80 лет</button>
+           <button type="button" class="quick-btn" data-ban-years="500">500 лет</button>
+         </div>
+       </div>
+
+       <div class="field" style="margin-top:14px">
+         <label>Фото на странице бана</label>
+         <div class="ban-photo-editor">
+           <div class="ban-photo-preview" id="banPhotoPreview"><img src="${escapeHtml(BAN_IMAGE)}" alt="" /></div>
+           <div class="grow">
+             <div class="row wrap" style="gap:7px">
+               <span class="btn btn-sm file-btn">Загрузить своё фото<input type="file" id="banPhotoFile" accept="image/*" /></span>
+               <button class="btn btn-sm btn-ghost" id="banPhotoReset" type="button">Стандартное</button>
+             </div>
+             <input class="input" id="banPhotoUrl" placeholder="или ссылка https://…" style="margin-top:8px" autocomplete="off" />
+             <div class="hint" style="margin-top:6px">Пусто — используется стандартная картинка CharMsg.</div>
+           </div>
+         </div>
+       </div>
+
+       <div class="error-text" id="banError"></div>
+       <div class="modal-actions">
+         <button class="btn btn-ghost" data-close type="button">Отмена</button>
+         <button class="btn btn-danger" id="banSubmit" type="button">Забанить</button>
+       </div>`,
+      { className: "ban-modal" }
+    );
+
+    const body = modal.body;
+    const preview = body.querySelector("#banPhotoPreview");
+    const urlInput = body.querySelector("#banPhotoUrl");
+    const durationInput = body.querySelector("#banYears");
+    const unitInput = body.querySelector("#banUnit");
+
+    const paintPreview = () => {
+      const src = banImage || BAN_IMAGE;
+      preview.innerHTML = `<img src="${escapeHtml(src)}" alt="" />`;
+    };
+    paintPreview();
+
+    body.querySelector("#banQuick").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-ban-years]");
+      if (!btn) return;
+      durationInput.value = btn.dataset.banYears;
+      unitInput.value = "years";
+    });
+
+    body.querySelector("#banPhotoFile").addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        banImage = await imageFileToDataUrl(file, { maxW: 1200, maxH: 800, quality: 0.82 });
+        urlInput.value = "";
+        paintPreview();
+      } catch (err) {
+        toast(err.message || "Не удалось обработать фото", "error");
+      } finally {
+        e.target.value = "";
+      }
+    });
+
+    urlInput.addEventListener("input", () => {
+      const value = urlInput.value.trim();
+      if (!value) {
+        banImage = "";
+        paintPreview();
+        return;
+      }
+      if (/^https:\/\//i.test(value)) {
+        banImage = value;
+        paintPreview();
+      }
+    });
+
+    body.querySelector("#banPhotoReset").addEventListener("click", () => {
+      banImage = "";
+      urlInput.value = "";
+      paintPreview();
+    });
+
+    body.querySelector("#banSubmit").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const errorEl = body.querySelector("#banError");
+      errorEl.textContent = "";
+      btn.disabled = true;
+      btn.textContent = "Баним…";
+      try {
+        await adminBanUser(uid, {
+          reason: body.querySelector("#banReason").value,
+          duration: Number(durationInput.value),
+          unit: unitInput.value,
+          image: urlInput.value.trim() || banImage
+        });
+        modal.close();
+        toast("Пользователь забанен", "success");
+        await loadUsers();
+        void loadStats();
+      } catch (err) {
+        errorEl.textContent = err.message || "Не удалось забанить пользователя";
+        btn.disabled = false;
+        btn.textContent = "Забанить";
+      }
+    });
+  }
+
   $("usersBody").addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-action]");
     if (!btn) return;
@@ -307,9 +459,19 @@ export function mountAdmin(container) {
     }
     try {
       if (action === "ban") {
-        const next = btn.dataset.banned !== "1";
-        await adminSetBanned(uid, next);
-        toast(next ? "Пользователь заблокирован" : "Пользователь разблокирован", "success");
+        if (btn.dataset.banned === "1") {
+          const ok = await confirmDialog("Разблокировать?", `Пользователь ${user?.nick || uid} снова получит доступ к CharMsg.`, "Разблокировать");
+          if (!ok) return;
+          await adminSetBanned(uid, false);
+          toast("Пользователь разблокирован", "success");
+        } else {
+          openBanModal(user || { uid, nick: uid });
+          return;
+        }
+      } else if (action === "verify") {
+        const next = btn.dataset.verified !== "1";
+        await adminSetVerified(uid, next);
+        toast(next ? "Пользователь верифицирован — закрытый чат открыт" : "Верификация снята", "success");
       } else if (action === "coins") {
         await adminGrantCoins(uid, 100);
         toast("Начислено 100 CR", "success");
@@ -323,6 +485,19 @@ export function mountAdmin(container) {
       void loadStats();
     } catch (err) {
       toast(err.message || "Действие не выполнено", "error");
+    }
+  });
+
+  $("usersBody").addEventListener("change", async (e) => {
+    const select = e.target.closest("[data-rank]");
+    if (!select) return;
+    const uid = select.dataset.rank;
+    try {
+      await adminSetRank(uid, Number(select.value));
+      toast("Ранг обновлён", "success");
+      await loadUsers();
+    } catch (err) {
+      toast(err.message || "Не удалось выдать ранг", "error");
     }
   });
 
@@ -441,7 +616,7 @@ export function mountAdmin(container) {
   $("adminLogout").addEventListener("click", async () => {
     const ok = await confirmDialog("Выйти из админки?", "Вы вернётесь к анонимной личности на этом устройстве.", "Выйти");
     if (!ok) return;
-    adminLogout();
+    await adminLogout();
     location.reload();
   });
 

@@ -1,58 +1,55 @@
 rules_version = '2';
-
-// CharMsg Firestore rules.
-// The messenger is intentionally anonymous: users have no Firebase Auth account,
-// identity is a random device id stored in localStorage. These rules therefore
-// allow anonymous reads/writes but validate document shapes and keep the
-// admin credential document read-only for clients.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
 
-    // Admin credentials (login/salt/hash) are seeded server-side only.
-    match /config/{docId} {
-      allow read: if true;
-      allow write: if false;
+    function admin() {
+      return signedIn() && request.auth.uid == 'admin_farnaz'
+        && request.auth.token.get('admin', false) == true;
+    }
+
+    function active() {
+      return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('banned', true) == false;
     }
 
     match /users/{uid} {
-      allow read: if true;
-      allow create: if request.resource.data.nick is string
-        && request.resource.data.nick.size() >= 2
-        && request.resource.data.nick.size() <= 18;
-      allow update: if request.resource.data.nick is string
-        && request.resource.data.nick.size() >= 2
-        && request.resource.data.nick.size() <= 18;
-      allow delete: if true;
+      allow read: if signedIn() && (request.auth.uid == uid || active() || admin());
+      allow update: if admin();
+      allow delete: if admin() && uid != 'admin_farnaz';
+
+      match /preferences/seen {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create, update: if active() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['chats'])
+          && request.resource.data.chats is map
+          && request.resource.data.chats.size() <= 500;
+      }
     }
 
     match /chats/{chatId} {
-      allow read: if true;
-      allow create: if request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 60;
-      allow update: if true;
-      allow delete: if true;
-
-      match /messages/{msgId} {
-        allow read: if true;
-        allow create: if request.resource.data.text is string
-          && request.resource.data.text.size() > 0
-          && request.resource.data.text.size() <= 1500;
-        allow update, delete: if true;
+      allow read: if admin();
+      match /messages/{messageId} {
+        allow read, delete: if admin();
       }
     }
 
     match /market/{docId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if active();
+      allow write: if admin();
     }
 
-    match /trades/{tradeId} {
-      allow read: if true;
-      allow create: if request.resource.data.nick is string
-        && request.resource.data.ts is number
-        && request.resource.data.side in ['buy', 'sell'];
-      allow update, delete: if false;
+    match /nfts/{docId} {
+      allow read: if active();
+    }
+
+    match /trades/{docId} {
+      allow read: if active();
+    }
+
+    match /casino/{docId} {
+      allow read: if active();
     }
   }
 }

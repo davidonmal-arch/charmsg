@@ -1,7 +1,18 @@
-import { state, onChange } from "../state.js";
-import { openProfileModal } from "../ui.js";
-import { trade, tickMarket } from "../store.js";
+import { state, onChange, userOf } from "../state.js";
+import { confirmDialog, openModal, openProfileModal } from "../ui.js";
 import {
+  NFT_EFFECTS,
+  buyNft,
+  canCreateNft,
+  createNft,
+  deleteNft,
+  effectClass,
+  setNftSale,
+  tickMarket,
+  trade
+} from "../store.js";
+import {
+  NFT_MIN_RANK,
   avatarData,
   clamp,
   escapeHtml,
@@ -9,7 +20,12 @@ import {
   fmtPct,
   fmtRelative,
   fmtTime,
+  imageFileToDataUrl,
   nickHtml,
+  rankBadge,
+  rankInfo,
+  rankOf,
+  safeUrl,
   toast
 } from "../util.js";
 
@@ -80,6 +96,7 @@ function buildChart(history) {
 export function mountMarket(container) {
   let side = "buy";
   let amountInputValue = "";
+  let nftFilter = "sale";
 
   container.innerHTML = `
     <div class="page-head">
@@ -185,7 +202,27 @@ export function mountMarket(container) {
           <div id="leaders"><div class="empty" style="min-height:100px"><p>Считаем портфели…</p></div></div>
         </div>
       </div>
-    </div>`;
+    </div>
+
+    <section class="card nft-section">
+      <div class="row-between nft-head">
+        <div>
+          <div class="eyebrow">nft · коллекция</div>
+          <div class="nft-title">NFT-маркет CharMsg</div>
+          <p class="hint">Уникальные картинки с эффектами. Создавать может админ и ранг «${rankInfo(NFT_MIN_RANK).name}» и выше, покупать — любой пользователь.</p>
+        </div>
+        <div class="row wrap">
+          <span class="badge" id="nftAccess">—</span>
+          <button class="btn btn-primary btn-sm" id="createNftBtn" type="button">Создать NFT</button>
+        </div>
+      </div>
+      <div class="seg nft-filters" id="nftFilters">
+        <button class="seg-btn active" type="button" data-nft-filter="sale">В продаже</button>
+        <button class="seg-btn" type="button" data-nft-filter="all">Все</button>
+        <button class="seg-btn" type="button" data-nft-filter="mine">Мои</button>
+      </div>
+      <div class="nft-grid" id="nftGrid"></div>
+    </section>`;
 
   const $ = (id) => container.querySelector(`#${id}`);
   const priceBig = $("priceBig");
@@ -213,6 +250,10 @@ export function mountMarket(container) {
   const pPnl = $("pPnl");
   const feedList = $("feedList");
   const leaders = $("leaders");
+  const nftGrid = $("nftGrid");
+  const nftAccess = $("nftAccess");
+  const nftFilters = $("nftFilters");
+  const createNftBtn = $("createNftBtn");
 
   const marketPrice = () => Number(state.market?.price) || 100;
   const liquidity = () => Math.max(1000, Number(state.market?.liq) || 12000);
@@ -319,6 +360,16 @@ export function mountMarket(container) {
     }
     feedList.innerHTML = trades
       .map((t) => {
+        if (t.isNft) {
+          return `<div class="feed-row nft-feed-row">
+            <span class="side-badge nft">◈</span>
+            <span class="feed-nick ${t.isAdmin ? "nick-admin" : ""}" data-uid="${escapeHtml(t.uid)}" title="${escapeHtml(t.nick || "")}">${escapeHtml(t.nick || "Аноним")}</span>
+            <span class="dm-tag">nft</span>
+            <span class="feed-amount">${escapeHtml(t.nftName || "NFT")}</span>
+            <span class="feed-amount">−${fmtNum(t.amountCr || 0, 2)} CR</span>
+            <span class="feed-time">${fmtRelative(t.ts)}</span>
+          </div>`;
+        }
         const isBot = !!t.isBot;
         return `<div class="feed-row">
           <span class="side-badge ${t.side === "buy" ? "buy" : "sell"}">${t.side === "buy" ? "↑" : "↓"}</span>
@@ -347,10 +398,206 @@ export function mountMarket(container) {
           <span class="leader-rank">${i + 1}</span>
           ${avatarData(u.nick, u.avatar, 26)}
           <span class="leader-nick ${u.isAdmin ? "nick-admin" : ""}">${escapeHtml(u.nick)}</span>
+          ${rankBadge(rankOf(u), { compact: true })}
           <span class="leader-value">${fmtNum(u.portfolio, 2)} CR</span>
         </div>`;
       })
       .join("");
+  }
+
+  function effectName(key) {
+    return NFT_EFFECTS.find((e) => e.key === key)?.name || "Без эффекта";
+  }
+
+  function nftCardHtml(nft) {
+    const image = safeUrl(nft.image || "");
+    const own = nft.ownerUid === state.uid;
+    const owner = userOf(nft.ownerUid) || { nick: nft.ownerNick || "Аноним", avatar: "" };
+    const price = Number(nft.price) || 0;
+    return `<article class="nft-card" data-nft="${nft.id}">
+      <div class="nft-art ${effectClass(nft.effect)}">
+        ${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy" />` : `<span class="nft-noimg">◈</span>`}
+        <span class="nft-effect">${escapeHtml(effectName(nft.effect))}</span>
+        ${nft.forSale ? `<span class="nft-price-tag">${fmtNum(price, 2)} CR</span>` : ""}
+      </div>
+      <div class="nft-body">
+        <div class="nft-card-top">
+          <h3>${escapeHtml(nft.name || "NFT")}</h3>
+          ${nft.forSale ? '<span class="badge solid">продаётся</span>' : '<span class="badge">в коллекции</span>'}
+        </div>
+        ${nft.description ? `<p class="nft-desc">${escapeHtml(nft.description)}</p>` : ""}
+        <div class="nft-owner" data-uid="${escapeHtml(nft.ownerUid)}" role="button" tabindex="0">
+          ${avatarData(owner.nick, owner.avatar, 24)}
+          <span class="grow">${escapeHtml(owner.nick || nft.ownerNick || "Аноним")}</span>
+          ${rankBadge(rankOf(owner), { compact: true })}
+        </div>
+        <div class="nft-actions">
+          ${own
+            ? `<input class="input nft-price-input" data-nft-price="${nft.id}" inputmode="decimal" placeholder="цена CR" value="${nft.forSale ? price : ""}" />
+               <button class="btn btn-sm btn-primary" data-nft-list="${nft.id}" type="button">${nft.forSale ? "Обновить" : "Выставить"}</button>
+               ${nft.forSale ? `<button class="btn btn-sm btn-ghost" data-nft-unlist="${nft.id}" type="button">Снять</button>` : ""}
+               <button class="btn btn-sm btn-danger" data-nft-delete="${nft.id}" type="button" title="Удалить NFT">×</button>`
+            : nft.forSale
+              ? `<button class="btn btn-sm btn-primary btn-block" data-nft-buy="${nft.id}" type="button">Купить за ${fmtNum(price, 2)} CR</button>`
+              : `<span class="hint">Не выставлен на продажу</span>`}
+        </div>
+      </div>
+    </article>`;
+  }
+
+  function refreshNfts() {
+    const all = state.nfts || [];
+    const list = all.filter((nft) => {
+      if (nftFilter === "sale") return !!nft.forSale;
+      if (nftFilter === "mine") return nft.ownerUid === state.uid;
+      return true;
+    });
+    const allowed = canCreateNft(state.profile);
+    nftAccess.textContent = allowed
+      ? "создание открыто"
+      : `NFT с ранга «${rankInfo(NFT_MIN_RANK).name}»`;
+    createNftBtn.disabled = !allowed;
+    createNftBtn.title = allowed ? "Создать свой NFT" : `Нужен ранг «${rankInfo(NFT_MIN_RANK).name}» или админ`;
+    if (!list.length) {
+      nftGrid.innerHTML = `<div class="empty" style="min-height:170px"><p>${nftFilter === "mine" ? "У вас пока нет NFT. Создайте первый или купите на маркете." : "Здесь пока нет NFT. Первый появится, как только кто-то выставит его на продажу."}</p></div>`;
+      return;
+    }
+    nftGrid.innerHTML = list.map(nftCardHtml).join("");
+  }
+
+  async function attemptNftBuy(nftId) {
+    if (!state.profile) {
+      toast("Сначала создайте профиль", "error");
+      return;
+    }
+    const nft = (state.nfts || []).find((n) => n.id === nftId);
+    if (!nft) return;
+    const ok = await confirmDialog(
+      "Купить NFT?",
+      `«${nft.name || "NFT"}» за ${fmtNum(nft.price || 0, 2)} CR. Сумма перейдёт продавцу, NFT станет вашим.`,
+      "Купить"
+    );
+    if (!ok) return;
+    try {
+      const result = await buyNft(nftId, state.profile);
+      toast(`NFT «${result.name}» куплен за ${fmtNum(result.price, 2)} CR`, "success");
+    } catch (err) {
+      toast(err.message || "Не удалось купить NFT", "error");
+    }
+  }
+
+  function openCreateNft() {
+    if (!state.profile) {
+      toast("Сначала создайте профиль", "error");
+      return;
+    }
+    if (!canCreateNft(state.profile)) {
+      toast(`Создавать NFT можно с ранга «${rankInfo(NFT_MIN_RANK).name}»`, "error");
+      return;
+    }
+    const draft = { image: "", effect: "none" };
+    const modal = openModal(
+      `<button class="modal-close" data-close aria-label="Закрыть">×</button>
+       <h3 class="modal-title">Создать NFT</h3>
+       <p class="modal-sub">Картинка, название и эффект. Выставьте цену — и NFT появится на бирже, где его сможет купить любой.</p>
+       <div class="nft-create-grid">
+         <div>
+           <div class="nft-art nft-preview" id="nftPreview"><span class="nft-noimg">◈</span></div>
+           <div class="row wrap" style="gap:7px;margin-top:9px">
+             <span class="btn btn-sm file-btn">Загрузить картинку<input type="file" id="nftFile" accept="image/*" /></span>
+           </div>
+           <input class="input" id="nftUrl" placeholder="или ссылка https://…" style="margin-top:8px" autocomplete="off" />
+         </div>
+         <div class="stack" style="gap:12px">
+           <div class="field">
+             <label for="nftName">Название</label>
+             <input class="input" id="nftName" maxlength="60" placeholder="Например, Purple Genesis" />
+           </div>
+           <div class="field">
+             <label for="nftDesc">Описание</label>
+             <textarea class="textarea" id="nftDesc" maxlength="500" rows="2" placeholder="Что особенного в этом NFT?"></textarea>
+           </div>
+           <div class="field">
+             <label>Эффект</label>
+             <div class="quick-row" id="nftEffects">
+               ${NFT_EFFECTS.map((e, i) => `<button type="button" class="quick-btn ${i === 0 ? "active" : ""}" data-effect="${e.key}">${e.name}</button>`).join("")}
+             </div>
+           </div>
+           <div class="field">
+             <label for="nftPrice">Цена в CR</label>
+             <input class="input" id="nftPrice" inputmode="decimal" placeholder="Например, 250" />
+             <div class="hint">0 — оставить в коллекции без продажи. Выставить можно позже.</div>
+           </div>
+         </div>
+       </div>
+       <div class="error-text" id="nftError"></div>
+       <div class="modal-actions">
+         <button class="btn btn-ghost" data-close type="button">Отмена</button>
+         <button class="btn btn-primary" id="nftSave" type="button">Создать NFT</button>
+       </div>`,
+      { className: "nft-create-modal" }
+    );
+
+    const body = modal.body;
+    const preview = body.querySelector("#nftPreview");
+    const paint = () => {
+      const url = safeUrl(draft.image);
+      preview.className = `nft-art nft-preview ${effectClass(draft.effect)}`;
+      preview.innerHTML = url ? `<img src="${escapeHtml(url)}" alt="" />` : `<span class="nft-noimg">◈</span>`;
+    };
+    paint();
+
+    body.querySelector("#nftFile").addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        draft.image = await imageFileToDataUrl(file, { maxW: 640, maxH: 640, quality: 0.82 });
+        paint();
+      } catch (err) {
+        toast(err.message || "Не удалось обработать картинку", "error");
+      } finally {
+        e.target.value = "";
+      }
+    });
+    body.querySelector("#nftUrl").addEventListener("input", (e) => {
+      const url = safeUrl(e.target.value);
+      if (url) {
+        draft.image = url;
+        paint();
+      }
+    });
+    body.querySelector("#nftEffects").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-effect]");
+      if (!btn) return;
+      draft.effect = btn.dataset.effect;
+      body.querySelectorAll("[data-effect]").forEach((b) => b.classList.toggle("active", b === btn));
+      paint();
+    });
+    body.querySelector("#nftSave").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const errorEl = body.querySelector("#nftError");
+      errorEl.textContent = "";
+      btn.disabled = true;
+      btn.textContent = "Создаём…";
+      try {
+        await createNft(state.profile, {
+          name: body.querySelector("#nftName").value,
+          description: body.querySelector("#nftDesc").value,
+          image: draft.image,
+          effect: draft.effect,
+          price: Number(body.querySelector("#nftPrice").value) || 0
+        });
+        modal.close();
+        nftFilter = "mine";
+        nftFilters.querySelectorAll("[data-nft-filter]").forEach((b) => b.classList.toggle("active", b.dataset.nftFilter === "mine"));
+        refreshNfts();
+        toast("NFT создан", "success");
+      } catch (err) {
+        errorEl.textContent = err.message || "Не удалось создать NFT";
+        btn.disabled = false;
+        btn.textContent = "Создать NFT";
+      }
+    });
   }
 
   function refresh() {
@@ -359,6 +606,7 @@ export function mountMarket(container) {
     refreshPortfolio();
     refreshFeed();
     refreshLeaders();
+    refreshNfts();
   }
 
   function setSide(next) {
@@ -435,6 +683,65 @@ export function mountMarket(container) {
   leaders.addEventListener("click", (e) => {
     const node = e.target.closest("[data-uid]");
     if (node?.dataset.uid) openProfileModal(node.dataset.uid);
+  });
+
+  nftFilters.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-nft-filter]");
+    if (!btn) return;
+    nftFilter = btn.dataset.nftFilter;
+    nftFilters.querySelectorAll("[data-nft-filter]").forEach((b) => b.classList.toggle("active", b === btn));
+    refreshNfts();
+  });
+  createNftBtn.addEventListener("click", openCreateNft);
+
+  nftGrid.addEventListener("click", async (e) => {
+    const buyBtn = e.target.closest("[data-nft-buy]");
+    if (buyBtn) {
+      await attemptNftBuy(buyBtn.dataset.nftBuy);
+      return;
+    }
+    const listBtn = e.target.closest("[data-nft-list]");
+    if (listBtn) {
+      const id = listBtn.dataset.nftList;
+      const input = nftGrid.querySelector(`[data-nft-price="${id}"]`);
+      const price = Number(input?.value) || 0;
+      if (price <= 0) {
+        toast("Введите цену больше нуля", "error");
+        return;
+      }
+      try {
+        await setNftSale(id, state.profile, price);
+        toast(`NFT выставлен за ${fmtNum(price, 2)} CR`, "success");
+      } catch (err) {
+        toast(err.message || "Не удалось выставить NFT", "error");
+      }
+      return;
+    }
+    const unlistBtn = e.target.closest("[data-nft-unlist]");
+    if (unlistBtn) {
+      try {
+        await setNftSale(unlistBtn.dataset.nftUnlist, state.profile, 0);
+        toast("NFT снят с продажи", "success");
+      } catch (err) {
+        toast(err.message || "Не удалось снять NFT", "error");
+      }
+      return;
+    }
+    const deleteBtn = e.target.closest("[data-nft-delete]");
+    if (deleteBtn) {
+      const nft = (state.nfts || []).find((n) => n.id === deleteBtn.dataset.nftDelete);
+      const ok = await confirmDialog("Удалить NFT?", `«${nft?.name || "NFT"}» исчезнет из коллекции без возможности восстановления.`, "Удалить", true);
+      if (!ok) return;
+      try {
+        await deleteNft(deleteBtn.dataset.nftDelete, state.profile);
+        toast("NFT удалён", "success");
+      } catch (err) {
+        toast(err.message || "Не удалось удалить NFT", "error");
+      }
+      return;
+    }
+    const owner = e.target.closest("[data-uid]");
+    if (owner?.dataset.uid) openProfileModal(owner.dataset.uid);
   });
 
   const unsub = onChange(refresh);

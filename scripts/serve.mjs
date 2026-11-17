@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
-import { readFile, stat } from "node:fs/promises";
-import { extname, join, normalize } from "node:path";
+import { readFile } from "node:fs/promises";
+import { extname, resolve, sep } from "node:path";
 
 const root = process.cwd();
 const port = Number(process.env.PORT) || 5173;
@@ -20,17 +20,17 @@ const types = {
 
 createServer(async (req, res) => {
   try {
-    let urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
-    let filePath = normalize(join(root, urlPath));
-    if (!filePath.startsWith(root)) {
-      res.writeHead(403).end("Forbidden");
+    const decoded = decodeURIComponent(new URL(req.url || "/", "http://localhost").pathname);
+    const path = decoded === "/" ? "/index.html" : decoded;
+    if (!/^\/(?:index\.html|manifest\.webmanifest|(?:assets|css|js)\/[a-z0-9_./-]+)$/i.test(path)
+      || path.split("/").some((segment) => segment.startsWith("."))) {
+      res.writeHead(404).end("Not found");
       return;
     }
-    try {
-      const info = await stat(filePath);
-      if (info.isDirectory()) filePath = join(filePath, "index.html");
-    } catch {
-      filePath = join(root, "index.html");
+    const filePath = resolve(root, "." + path);
+    if (!filePath.startsWith(root + sep)) {
+      res.writeHead(404).end("Not found");
+      return;
     }
     const data = await readFile(filePath);
     res.writeHead(200, {
@@ -41,4 +41,4 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404, { "Content-Type": "text/plain" }).end("Not found");
   }
-}).listen(port, () => console.log(`CharMsg dev server: http://localhost:${port}`));
+}).listen(port, "127.0.0.1", () => console.log(`CharMsg dev server: http://127.0.0.1:${port}`));

@@ -4,10 +4,14 @@ import {
   fmtNum,
   fmtRelative,
   nickHtml,
-  toast
+  rankBadge,
+  rankOf,
+  safeUrl,
+  toast,
+  verifiedBadge
 } from "./util.js";
 import { state, userOf } from "./state.js";
-import { adminLogin, fetchUser, openDM } from "./store.js";
+import { adminLogin, fetchUser, openDM, savePlayerLogin, signInPlayer } from "./store.js";
 
 const root = () => document.getElementById("modalRoot");
 
@@ -64,12 +68,15 @@ export function confirmDialog(title, text, confirmLabel = "Подтвердит�
 export function userCardHtml(user, { own = false } = {}) {
   const u = user || { nick: "Аноним", bio: "", avatar: "", isAdmin: false };
   const joined = u.createdAt ? new Date(u.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "неизвестно";
+  const banner = safeUrl(u.banner || "");
   return `
-    <div class="user-modal-banner"></div>
+    <div class="user-modal-banner ${banner ? "has-image" : ""}"${banner ? ` style="background-image:url('${escapeHtml(banner)}')"` : ""}></div>
     <div class="user-modal-body">
       <div class="user-modal-avatar">${avatarData(u.nick, u.avatar, 84)}</div>
       <div class="user-modal-name">
         ${nickHtml(u.nick || "Аноним", u.isAdmin)}
+        ${rankBadge(rankOf(u))}
+        ${verifiedBadge(u.verified)}
         ${u.isAdmin ? '<span class="admin-tag">admin</span>' : ""}
         ${u.banned ? '<span class="badge">заблокирован</span>' : ""}
       </div>
@@ -79,6 +86,7 @@ export function userCardHtml(user, { own = false } = {}) {
         <span class="badge solid">◈ ${fmtNum(u.coins || 0)} CR</span>
         <span class="badge">${fmtNum(u.chr || 0, 2)} CHR</span>
         <span class="badge">${fmtNum(u.msgCount || 0)} сообщений</span>
+        ${u.verified ? '<span class="badge" style="color:var(--p4)">верифицирован</span>' : ""}
       </div>
       <div class="modal-actions">
         ${own
@@ -118,6 +126,51 @@ export async function openProfileModal(uid, { onDM } = {}) {
       toast(err.message || "Не удалось открыть чат", "error");
       btn.disabled = false;
       btn.textContent = "Написать в личные сообщения";
+    }
+  });
+}
+
+export function openPlayerLoginModal({ link = false, onLinked } = {}) {
+  const modal = openModal(
+    `<button class="modal-close" data-close aria-label="Закрыть">×</button>
+     <h3 class="modal-title">${link ? "Сохранить вход в профиль" : "Войти в существующий профиль"}</h3>
+     <form id="playerCredentials">
+       <div class="field">
+         <label for="playerLogin">Логин</label>
+         <input class="input" id="playerLogin" name="login" maxlength="24" autocomplete="username" required />
+       </div>
+       <div class="field" style="margin-top:12px">
+         <label for="playerPassword">Пароль</label>
+         <input class="input" id="playerPassword" name="password" type="password"
+           autocomplete="${link ? "new-password" : "current-password"}" ${link ? 'minlength="12"' : ""} required />
+       </div>
+       ${link ? '<p class="hint">Логин для входа можно выбрать отдельно от ника. Запишите пароль, поскольку восстановление по почте недоступно.</p>' : ""}
+       <p class="error-text" role="alert"></p>
+       <button class="btn btn-primary btn-block" type="submit">${link ? "Сохранить" : "Войти"}</button>
+     </form>`
+  );
+  const form = modal.body.querySelector("form");
+  const submit = form.querySelector("button");
+  const errorLine = form.querySelector('[role="alert"]');
+  form.elements.login.focus();
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    errorLine.textContent = "";
+    submit.disabled = true;
+    try {
+      const { login, password } = form.elements;
+      if (link) {
+        await savePlayerLogin(login.value, password.value);
+        modal.close();
+        onLinked?.();
+        toast("Логин и пароль сохранены", "success");
+      } else {
+        await signInPlayer(login.value, password.value);
+        location.reload();
+      }
+    } catch (error) {
+      errorLine.textContent = error.message;
+      submit.disabled = false;
     }
   });
 }

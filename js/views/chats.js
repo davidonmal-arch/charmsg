@@ -1,5 +1,6 @@
 import {
   DAY,
+  canAccessChat,
   deleteChat,
   deleteMessage,
   markSeen,
@@ -20,10 +21,13 @@ import {
   fmtTime,
   isMobile,
   nickHtml,
+  rankBadge,
+  rankOf,
   scrollToBottom,
   ttlLabel,
   ttlShort,
-  toast
+  toast,
+  verifiedBadge
 } from "../util.js";
 
 const TTL_OPTIONS = [
@@ -149,7 +153,7 @@ export function mountChats(container) {
   }
 
   function renderList() {
-    const chats = state.chats || [];
+    const chats = (state.chats || []).filter((chat) => canAccessChat(chat, state.profile));
     countEl.textContent = chats.length;
     const q = local.search.trim().toLowerCase();
     const filtered = chats.filter((chat) => {
@@ -192,6 +196,7 @@ export function mountChats(container) {
             <div class="chat-item-badges">
               <span class="badge">⏳ ${ttlShort(chat.ttl)}</span>
               ${chat.isDM ? '<span class="dm-tag">ЛС</span>' : ""}
+              ${chat.verifiedOnly ? '<span class="dm-tag lock-tag">🔒 verified</span>' : ""}
             </div>
           </div>
           ${unread ? '<span class="unread-dot"></span>' : ""}
@@ -232,8 +237,8 @@ export function mountChats(container) {
     roomEl.hidden = false;
     const d = chatDisplay(chat);
     titleEl.innerHTML = d.isDM
-      ? `${nickHtml(d.other?.nick || "Аноним", d.other?.isAdmin)} ${d.other?.isAdmin ? '<span class="admin-tag">admin</span>' : ""}`
-      : `${escapeHtml(d.emoji)} ${escapeHtml(d.name)}`;
+      ? `${nickHtml(d.other?.nick || "Аноним", d.other?.isAdmin)} ${rankBadge(rankOf(d.other), { compact: true })} ${verifiedBadge(d.other?.verified, { compact: true })} ${d.other?.isAdmin ? '<span class="admin-tag">admin</span>' : ""}`
+      : `${escapeHtml(d.emoji)} ${escapeHtml(d.name)} ${chat.verifiedOnly ? '<span class="lock-tag">🔒</span>' : ""}`;
     avatarEl.innerHTML = d.isDM
       ? avatarData(d.other?.nick || d.name, d.other?.avatar || "")
       : `<span style="font-size:21px">${escapeHtml(d.emoji)}</span>`;
@@ -241,7 +246,7 @@ export function mountChats(container) {
     const ttl = Number(chat.ttl) || DAY;
     subEl.innerHTML = d.isDM
       ? `<span>Личный чат</span> · <span>${d.other?.isAdmin ? "администратор" : "аноним"}</span>`
-      : `<span>${chat.desc ? escapeHtml(chat.desc) : "Публичный чат"}</span>${isCreator || state.profile?.isAdmin ? " · <span>вы создатель</span>" : ""}`;
+      : `<span>${chat.verifiedOnly ? "Только для верифицированных" : chat.desc ? escapeHtml(chat.desc) : "Публичный чат"}</span>${isCreator || state.profile?.isAdmin ? " · <span>вы создатель</span>" : ""}`;
     const nextExpiry = local.messages.reduce((min, m) => (m.expiresAt && m.expiresAt > Date.now() ? Math.min(min, m.expiresAt) : min), Infinity);
     const countdown = Number.isFinite(nextExpiry) ? ` · ближайшее ${fmtDuration(nextExpiry - Date.now())}` : "";
     ttlEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ${escapeHtml(ttlLabel(ttl))}${countdown ? escapeHtml(countdown) : ""}`;
@@ -253,7 +258,9 @@ export function mountChats(container) {
       noteEl.textContent = "Аккаунт заблокирован администратором — отправка сообщений недоступна.";
     } else {
       inputEl.disabled = false;
-      noteEl.textContent = `Сообщения этого чата исчезают ${ttlLabel(ttl)} · Firestore хранит данные в облаке`;
+      noteEl.textContent = chat.verifiedOnly
+        ? `Закрытый чат для верифицированных · сообщения исчезают ${ttlLabel(ttl)}`
+        : `Сообщения этого чата исчезают ${ttlLabel(ttl)} · Firestore хранит данные в облаке`;
     }
   }
 
@@ -289,6 +296,8 @@ export function mountChats(container) {
           <div class="msg-body">
             <div class="msg-meta">
               <span class="nick ${isAdmin ? "nick-admin" : ""}" data-uid="${escapeHtml(msg.uid)}" role="button" tabindex="0">${escapeHtml(nick)}</span>
+              ${rankBadge(rankOf(author), { compact: true })}
+              ${verifiedBadge(author?.verified, { compact: true })}
               ${isAdmin ? '<span class="admin-tag">admin</span>' : ""}
               <span class="msg-time">${fmtTime(msg.createdAt)}</span>
             </div>
@@ -310,6 +319,10 @@ export function mountChats(container) {
     const chat = state.chats.find((c) => c.id === chatId);
     if (!chat) {
       toast("Чат не найден или удалён", "error");
+      return;
+    }
+    if (!canAccessChat(chat, state.profile)) {
+      toast("Этот чат доступен только верифицированным пользователям", "error");
       return;
     }
     if (local.chatId === chatId) {
@@ -383,7 +396,8 @@ export function mountChats(container) {
     }
     if (!autoOpened && !isMobile() && !state.activeChatId && state.chats.length) {
       autoOpened = true;
-      const first = state.chats.find((c) => c.isPublic) || state.chats[0];
+      const accessible = state.chats.filter((c) => canAccessChat(c, state.profile));
+      const first = accessible.find((c) => c.isPublic) || accessible[0];
       if (first) openChat(first.id);
     }
   }
@@ -616,7 +630,8 @@ export function mountChats(container) {
 
   // auto-open first chat on desktop for a lively first screen
   if (!isMobile() && !state.activeChatId && state.chats.length) {
-    const first = state.chats.find((c) => c.isPublic) || state.chats[0];
+    const accessible = state.chats.filter((c) => canAccessChat(c, state.profile));
+    const first = accessible.find((c) => c.isPublic) || accessible[0];
     if (first) openChat(first.id);
   }
 

@@ -1022,3 +1022,860 @@ table.admin-table { width: 100%; border-collapse: collapse; font-size: 12px; min
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb { background: rgba(196, 164, 218, 0.2); border-radius: 99px; }
 *::-webkit-scrollbar-thumb:hover { background: rgba(196, 164, 218, 0.34); }
+
+/* ============================================================
+   RANKS / VERIFICATION
+   ============================================================ */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--rank-color, var(--p4));
+  border: 1px solid rgba(196, 164, 218, 0.3);
+  border-color: color-mix(in srgb, var(--rank-color, #c4a4da) 48%, transparent);
+  background: rgba(196, 164, 218, 0.08);
+  background: color-mix(in srgb, var(--rank-color, #c4a4da) 12%, transparent);
+}
+.rank-badge.rank-compact {
+  padding: 1px 5px;
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+}
+.verified-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--p4);
+  color: #1a0f23;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 0 12px rgba(196, 164, 218, 0.55);
+  flex: 0 0 auto;
+}
+.verified-tag.compact { width: 13px; height: 13px; font-size: 8px; }
+.rank-card {
+  padding: 13px;
+  border-radius: 14px;
+  background: rgba(196, 164, 218, 0.04);
+  border: 1px solid var(--line);
+}
+.rank-card-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rank-track {
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(196, 164, 218, 0.12);
+  margin: 11px 0 8px;
+  overflow: hidden;
+}
+.rank-track-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 99px;
+  background: var(--grad);
+  transition: width 0.35s ease;
+}
+.rank-card-foot { font-size: 10.5px; color: var(--muted-2); }
+.rank-list { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+.rank-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  color: var(--muted-2);
+  border: 1px solid transparent;
+}
+.rank-list-row.reached { color: var(--p4); }
+.rank-list-row.current { background: rgba(196, 164, 218, 0.08); border-color: var(--line); }
+.rank-list-num { width: 22px; font-weight: 800; font-size: 9px; letter-spacing: 0.08em; }
+.rank-list-name { font-weight: 650; }
+.rank-list-hint { margin-left: auto; font-size: 9px; text-align: right; }
+.select-sm {
+  padding: 6px 26px 6px 9px;
+  font-size: 10.5px;
+  border-radius: 8px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--p4) 50%),
+    linear-gradient(135deg, var(--p4) 50%, transparent 50%);
+  background-position: calc(100% - 13px) calc(50% - 2px), calc(100% - 9px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* ============================================================
+   PROFILE BANNER
+   ============================================================ */
+.profile-banner.has-image,
+.user-modal-banner.has-image {
+  background-size: cover;
+  background-position: center;
+}
+.profile-banner.has-image::after,
+.user-modal-banner.has-image::after { background-image: none; }
+.banner-editor .banner-preview {
+  height: 112px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--grad-soft);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  text-align: center;
+  padding: 8px;
+}
+.banner-preview img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ============================================================
+   PASTES
+   ============================================================ */
+.pastes-layout {
+  display: grid;
+  grid-template-columns: minmax(290px, 0.82fr) minmax(0, 1.5fr);
+  gap: 16px;
+  align-items: start;
+}
+.paste-sidebar {
+  padding: 14px;
+  position: sticky;
+  top: calc(var(--topbar-h) + 14px);
+  max-height: calc(100dvh - var(--topbar-h) - 30px);
+  overflow: auto;
+}
+.paste-sidebar .search-wrap { padding: 0 0 10px; }
+.paste-filters { margin-bottom: 10px; }
+.paste-filters .seg-btn { font-size: 10px; padding: 6px 7px; }
+.paste-list { display: flex; flex-direction: column; gap: 7px; }
+.paste-card {
+  display: flex;
+  gap: 10px;
+  padding: 9px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(196, 164, 218, 0.03);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.paste-card:hover { background: rgba(196, 164, 218, 0.06); transform: translateY(-1px); }
+.paste-card.active { background: var(--grad-soft); border-color: rgba(196, 164, 218, 0.3); }
+.paste-thumb {
+  width: 58px;
+  height: 58px;
+  border-radius: 11px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: var(--grad-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.paste-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.paste-cover-empty { font-weight: 800; color: var(--p4); font-size: 18px; }
+.paste-card-body { min-width: 0; flex: 1; }
+.paste-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+.paste-card-top h3 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.paste-card-top .badge { font-size: 8px; padding: 1px 5px; flex: 0 0 auto; }
+.paste-card-subject {
+  font-size: 10.5px;
+  color: var(--p4);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.paste-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 9px;
+  color: var(--muted-2);
+  flex-wrap: wrap;
+}
+.paste-card-meta .avatar { width: 20px; height: 20px; border-radius: 6px; font-size: 8px; }
+.paste-reader { padding: 20px; min-height: 420px; }
+.paste-empty { min-height: 420px; }
+.paste-back { margin-bottom: 12px; display: none; }
+.paste-hero { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; align-items: start; }
+.paste-hero-cover {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--grad-soft);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.paste-hero-cover img { width: 100%; height: 100%; object-fit: cover; }
+.paste-title {
+  margin: 10px 0 3px;
+  font-size: clamp(21px, 2.4vw, 29px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+.paste-subject { font-size: 12px; color: var(--muted); }
+.paste-subject b { color: var(--p5); }
+.paste-author { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.paste-author .avatar { width: 30px; height: 30px; border-radius: 9px; font-size: 11px; }
+.paste-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 13px; }
+.paste-draft-note {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px dashed rgba(196, 164, 218, 0.3);
+  background: rgba(196, 164, 218, 0.05);
+  font-size: 11px;
+  color: var(--p4);
+  line-height: 1.5;
+}
+.paste-editors-line { margin-top: 14px; font-size: 11px; }
+.paste-chapters { margin-top: 20px; display: flex; flex-direction: column; gap: 14px; }
+.paste-chapter {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(196, 164, 218, 0.025);
+}
+.paste-chapter-no { font-size: 11px; font-weight: 800; color: var(--p4); opacity: 0.7; padding-top: 4px; }
+.paste-chapter-title { margin: 0 0 5px; font-size: 17px; font-weight: 800; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.paste-chapter-text { margin: 0; font-size: 11.5px; line-height: 1.65; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.paste-photo-editor { display: flex; gap: 12px; align-items: flex-start; }
+.paste-photo-preview {
+  width: 140px;
+  height: 96px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: rgba(196, 164, 218, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  font-size: 10px;
+  text-align: center;
+  padding: 6px;
+}
+.paste-photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.chapter-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  max-height: 340px;
+  overflow: auto;
+  padding-right: 4px;
+}
+.chapter-editor {
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(196, 164, 218, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.chapter-editor-head { display: flex; justify-content: space-between; align-items: center; }
+.chapter-editor .textarea { min-height: 70px; }
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.check-row input { accent-color: var(--p2); width: 16px; height: 16px; }
+.editor-list { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; }
+.editor-row { display: flex; align-items: center; gap: 9px; padding: 7px; border: 1px solid var(--line); border-radius: 11px; }
+.paste-editor-modal .modal { max-width: 760px; }
+.lock-tag { font-size: 8.5px; color: var(--p4); border: 1px solid rgba(196, 164, 218, 0.25); border-radius: 5px; padding: 1px 4px; letter-spacing: 0.06em; font-weight: 700; }
+
+/* ============================================================
+   NFT MARKET
+   ============================================================ */
+.nft-section { margin-top: 16px; padding: 20px; }
+.nft-head { align-items: flex-start; margin-bottom: 12px; }
+.nft-title { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; margin: 4px 0; }
+.nft-filters { margin-bottom: 14px; max-width: 360px; }
+.nft-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.nft-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(196, 164, 218, 0.03);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.nft-art {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, #2b0f3d, #08040c);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nft-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.nft-noimg { font-size: 42px; color: var(--p4); opacity: 0.5; }
+.nft-effect {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--line);
+  color: var(--p4);
+  backdrop-filter: blur(4px);
+}
+.nft-price-tag {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: rgba(10, 5, 15, 0.7);
+  border: 1px solid rgba(196, 164, 218, 0.35);
+  color: var(--p5);
+}
+.nft-body { padding: 11px; display: flex; flex-direction: column; gap: 7px; flex: 1; }
+.nft-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+.nft-card-top h3 { margin: 0; font-size: 13px; font-weight: 750; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.nft-card-top .badge { font-size: 8px; padding: 1px 5px; flex: 0 0 auto; }
+.nft-desc { margin: 0; font-size: 10.5px; color: var(--muted); line-height: 1.5; }
+.nft-owner { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--muted); cursor: pointer; }
+.nft-owner .avatar { width: 24px; height: 24px; border-radius: 7px; font-size: 8px; }
+.nft-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; align-items: center; }
+.nft-price-input { flex: 1; min-width: 70px; padding: 7px 9px; font-size: 11px; }
+.nft-actions .btn-sm { padding: 6px 9px; font-size: 10.5px; }
+.nft-create-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; }
+.nft-preview { border-radius: 14px; border: 1px solid var(--line); aspect-ratio: 1 / 1; }
+.nft-create-modal .modal { max-width: 720px; }
+.nft-feed-row .feed-amount { font-size: 9.5px; }
+.side-badge.nft { background: var(--grad); color: #1a0f23; }
+
+/* NFT effects */
+.fx-glow img { animation: nftGlow 2.4s ease-in-out infinite alternate; }
+@keyframes nftGlow {
+  from { filter: drop-shadow(0 0 6px rgba(196, 164, 218, 0.45)); }
+  to { filter: drop-shadow(0 0 22px rgba(196, 164, 218, 0.95)) brightness(1.08); }
+}
+.fx-holo img { animation: nftHolo 5s linear infinite; }
+@keyframes nftHolo {
+  0% { filter: hue-rotate(0deg) saturate(1.15); }
+  50% { filter: hue-rotate(45deg) saturate(1.45); }
+  100% { filter: hue-rotate(0deg) saturate(1.15); }
+}
+.fx-pulse img { animation: nftPulse 2s ease-in-out infinite; }
+@keyframes nftPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.045); }
+}
+.fx-fire img { animation: nftFire 1.6s ease-in-out infinite alternate; }
+@keyframes nftFire {
+  from { filter: drop-shadow(0 0 8px rgba(255, 120, 40, 0.4)) saturate(1.1); }
+  to { filter: drop-shadow(0 0 24px rgba(255, 70, 20, 0.85)) saturate(1.5) brightness(1.06); }
+}
+.fx-void::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, transparent 35%, rgba(10, 0, 20, 0.78) 100%);
+  animation: nftVoid 4s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes nftVoid {
+  from { opacity: 0.45; }
+  to { opacity: 0.9; }
+}
+
+/* ============================================================
+   BAN SCREEN
+   ============================================================ */
+body.is-banned .nav,
+body.is-banned .tabbar,
+body.is-banned .topbar-right,
+body.is-banned .admin-entry { display: none !important; }
+body.is-banned .topbar { justify-content: center; }
+.ban-screen { display: flex; justify-content: center; padding: 20px 0 60px; }
+.ban-card {
+  width: min(920px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  border: 1px solid rgba(196, 164, 218, 0.25);
+  border-radius: 22px;
+  overflow: hidden;
+  background: rgba(12, 6, 18, 0.82);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.7);
+}
+.ban-art { position: relative; min-height: 340px; background: #120817; overflow: hidden; }
+.ban-art img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(0.85) contrast(1.05); }
+.ban-art-glow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 35%, rgba(10, 0, 15, 0.85) 100%),
+    radial-gradient(circle at 50% 40%, rgba(196, 164, 218, 0.18), transparent 60%);
+}
+.ban-stamp {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-9deg);
+  font-size: clamp(26px, 5vw, 52px);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: rgba(224, 166, 191, 0.9);
+  border: 3px solid rgba(224, 166, 191, 0.7);
+  padding: 6px 18px;
+  border-radius: 8px;
+  text-shadow: 0 0 20px rgba(224, 166, 191, 0.5);
+  white-space: nowrap;
+}
+.ban-body { padding: 28px; }
+.ban-title {
+  margin: 8px 0 10px;
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  color: #f0d9e6;
+}
+.ban-lead { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.ban-meta { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 13px; overflow: hidden; }
+.ban-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  font-size: 11.5px;
+  border-bottom: 1px solid var(--line);
+}
+.ban-meta-row:last-child { border-bottom: 0; }
+.ban-meta-row span { color: var(--muted-2); }
+.ban-meta-row b { color: var(--text); text-align: right; overflow-wrap: anywhere; }
+.ban-warning {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 16px 0;
+  padding: 11px 12px;
+  border-radius: 11px;
+  border: 1px solid rgba(224, 166, 191, 0.28);
+  background: rgba(224, 166, 191, 0.06);
+  font-size: 11px;
+  line-height: 1.55;
+  color: #e2c0d1;
+}
+.ban-warning svg { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 1px; }
+.ban-foot {
+  text-align: center;
+  margin: 14px 0 0;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+@media (max-width: 980px) {
+  .pastes-layout { grid-template-columns: 1fr; }
+  .paste-sidebar { position: static; max-height: none; }
+  .paste-reader { min-height: 0; }
+  .pastes-layout.reader-open .paste-sidebar { display: none; }
+  .pastes-layout.reader-open .paste-back { display: inline-flex; }
+  .paste-hero { grid-template-columns: 1fr; }
+  .paste-hero-cover { max-width: 260px; }
+  .nft-create-grid { grid-template-columns: 1fr; }
+  .nft-preview { max-width: 220px; }
+}
+
+@media (max-width: 760px) {
+  .ban-card { grid-template-columns: 1fr; }
+  .ban-art { min-height: 240px; }
+  .ban-body { padding: 20px; }
+  .nft-section { padding: 14px; }
+  .nft-head { flex-direction: column; align-items: stretch; gap: 10px; }
+  .nft-head .row { justify-content: space-between; }
+  .nft-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .nft-body { padding: 9px; }
+  .nft-card-top { flex-direction: column; gap: 4px; }
+  .paste-chapter { padding: 11px; }
+  .paste-chapter-title { font-size: 15px; }
+  .rank-list-hint { display: none; }
+  .paste-photo-editor { flex-direction: column; }
+  .paste-photo-preview { width: 100%; }
+}
+
+/* ============================================================
+   Casino · roulette + upgrader
+   ============================================================ */
+.casino-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+.casino-tab {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 9px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.casino-tab:hover { color: var(--text); border-color: var(--line-strong); }
+.casino-tab.active {
+  color: #fff;
+  background: var(--grad);
+  border-color: transparent;
+  box-shadow: 0 8px 26px rgba(127, 93, 153, 0.32);
+}
+.casino-grid { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(260px, 0.75fr); gap: 14px; align-items: start; }
+.casino-panel { padding: 18px; }
+.casino-feed-title { font-size: 15px; font-weight: 750; letter-spacing: -0.02em; margin-top: 4px; }
+
+/* roulette */
+.roulette-layout { display: grid; grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.05fr); gap: 22px; align-items: center; }
+.roulette-stage { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.roulette-pointer {
+  width: 0;
+  height: 0;
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-top: 19px solid var(--p5);
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.8));
+  margin-bottom: -7px;
+  z-index: 4;
+}
+.roulette-wheel {
+  --r: 143px;
+  position: relative;
+  width: 330px;
+  height: 330px;
+  border-radius: 50%;
+  border: 7px solid #241230;
+  box-shadow:
+    0 0 0 2px rgba(196, 164, 218, 0.35),
+    0 0 0 11px rgba(20, 11, 28, 0.95),
+    0 0 0 12px rgba(196, 164, 218, 0.16),
+    0 26px 60px rgba(0, 0, 0, 0.7),
+    inset 0 0 46px rgba(0, 0, 0, 0.65);
+  will-change: transform;
+  transform: rotate(0deg);
+}
+.roulette-face { position: absolute; inset: 0; }
+.roulette-num {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8.5px;
+  font-weight: 800;
+  color: #f6effc;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  transform: rotate(var(--a)) translateY(calc(-1 * var(--r))) rotate(calc(-1 * var(--a)));
+  pointer-events: none;
+}
+.roulette-num.green { color: #c9f7db; }
+.roulette-hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 112px;
+  height: 112px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: radial-gradient(circle at 35% 25%, #3d1d53, #150a1e 70%);
+  border: 2px solid rgba(196, 164, 218, 0.38);
+  box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.75), 0 6px 20px rgba(0, 0, 0, 0.6);
+  z-index: 3;
+}
+.roulette-hub span { font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted-2); }
+.roulette-hub b { font-size: 13px; letter-spacing: 0.1em; color: var(--p5); }
+.roulette-result {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.34);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  max-width: 330px;
+}
+.roulette-result-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted-2); flex: 0 0 auto; }
+.roulette-result-dot.win { background: #6ee7a0; box-shadow: 0 0 10px rgba(110, 231, 160, 0.7); }
+.roulette-result-dot.lose { background: #e06a8c; box-shadow: 0 0 10px rgba(224, 106, 140, 0.6); }
+.roulette-bets { display: flex; flex-direction: column; }
+.roulette-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.roulette-color {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.36);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  padding: 11px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.16s ease;
+}
+.roulette-color .dot { width: 9px; height: 9px; border-radius: 50%; }
+.roulette-color.red .dot { background: #b02a4d; box-shadow: 0 0 8px rgba(176, 42, 77, 0.75); }
+.roulette-color.black .dot { background: #2a2030; border: 1px solid rgba(196, 164, 218, 0.45); }
+.roulette-color.active { color: #fff; border-color: var(--line-strong); background: var(--grad-soft); }
+.roulette-color.red.active { border-color: rgba(224, 106, 140, 0.6); }
+.roulette-board {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.roulette-cell {
+  appearance: none;
+  border: 1px solid rgba(196, 164, 218, 0.1);
+  color: #f2e9fa;
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 7px 0;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.roulette-cell.red { background: #6e1b33; }
+.roulette-cell.black { background: #1a1220; }
+.roulette-cell.green { background: #1f6a43; }
+.roulette-cell:hover { transform: translateY(-1px); }
+.roulette-cell.active { outline: 2px solid var(--p5); outline-offset: 1px; box-shadow: 0 0 12px rgba(231, 214, 245, 0.55); }
+.casino-bet-summary {
+  margin: 10px 0;
+  padding: 9px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: rgba(76, 35, 101, 0.18);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.casino-bet-summary b { color: var(--p5); }
+.casino-play { min-height: 46px; font-size: 13px; }
+
+/* feed */
+.casino-feed { padding: 16px; }
+.casino-feed-list { display: flex; flex-direction: column; gap: 2px; max-height: 420px; overflow-y: auto; }
+.casino-feed-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 10.5px;
+}
+.casino-feed-row:last-child { border-bottom: 0; }
+.casino-feed-game { font-size: 13px; text-align: center; }
+.casino-feed-nick { font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.casino-feed-info { grid-column: 2; color: var(--muted-2); font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.casino-feed-amount { font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.casino-feed-amount.win { color: #8fe7b4; }
+.casino-feed-amount.lose { color: #d987a3; }
+.casino-feed-time { grid-column: 3; color: var(--muted-2); font-size: 9px; white-space: nowrap; }
+.casino-rules { padding: 16px; }
+.casino-rule-list { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 7px; font-size: 10.5px; line-height: 1.55; color: var(--muted); }
+.casino-rule-list li::marker { color: var(--p3); }
+
+/* upgrader */
+.upgrader-layout { display: grid; grid-template-columns: minmax(0, 1fr) 230px minmax(0, 1fr); gap: 16px; align-items: start; }
+.up-side { min-width: 0; }
+.up-side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; font-size: 11px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.seg.seg-mini { grid-template-columns: 1fr 1fr; width: 108px; margin: 0; padding: 3px; border-radius: 10px; }
+.seg.seg-mini .seg-btn { font-size: 10px; padding: 5px 4px; border-radius: 7px; }
+.up-box { border: 1px solid var(--line); border-radius: 14px; background: rgba(0, 0, 0, 0.24); padding: 12px; }
+.up-box .field { margin: 0; }
+.up-nft-list { display: flex; flex-direction: column; gap: 7px; max-height: 330px; overflow-y: auto; padding-right: 2px; }
+.up-nft {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: rgba(20, 11, 28, 0.72);
+  border-radius: 11px;
+  padding: 6px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.up-nft:hover { border-color: var(--line-strong); }
+.up-nft.active { border-color: var(--p4); background: rgba(76, 35, 101, 0.35); box-shadow: 0 0 0 1px rgba(196, 164, 218, 0.35) inset; }
+.up-nft-art { position: relative; width: 42px; height: 42px; border-radius: 8px; overflow: hidden; flex: 0 0 auto; background: #170d20; display: flex; align-items: center; justify-content: center; }
+.up-nft-art img { width: 100%; height: 100%; object-fit: cover; }
+.up-nft-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.up-nft-name { font-size: 11px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.up-nft-price { font-size: 9.5px; color: var(--p4); font-variant-numeric: tabular-nums; }
+.up-nft-owner { font-size: 8.5px; color: var(--muted-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.up-wheel-stage { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.up-wheel {
+  position: relative;
+  width: 208px;
+  height: 208px;
+  border-radius: 50%;
+  border: 6px solid #241230;
+  box-shadow: 0 0 0 2px rgba(196, 164, 218, 0.32), 0 0 0 9px rgba(20, 11, 28, 0.9), 0 18px 40px rgba(0, 0, 0, 0.65);
+}
+.up-zone { position: absolute; inset: 0; border-radius: 50%; transition: background 0.3s ease; }
+.up-needle {
+  position: absolute;
+  left: 50%;
+  top: 9%;
+  width: 3px;
+  height: 41%;
+  border-radius: 3px;
+  background: linear-gradient(to bottom, #ffffff, #c4a4da 55%, rgba(196, 164, 218, 0.2));
+  transform: translateX(-50%) rotate(0deg);
+  transform-origin: 50% 100%;
+  box-shadow: 0 0 10px rgba(231, 214, 245, 0.75);
+  z-index: 3;
+}
+.up-needle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -5px;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid #fff;
+  filter: drop-shadow(0 0 5px rgba(231, 214, 245, 0.9));
+}
+.up-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 78px;
+  height: 78px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 35% 25%, #351a49, #120a1a 72%);
+  border: 2px solid rgba(196, 164, 218, 0.42);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.8), 0 4px 14px rgba(0, 0, 0, 0.7);
+  z-index: 2;
+}
+.up-center b { font-size: 17px; letter-spacing: -0.03em; color: var(--p5); }
+.up-center span { font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted-2); }
+.up-result {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.3);
+  width: 100%;
+}
+.up-result.win { color: #9cf0bf; border-color: rgba(110, 231, 160, 0.35); background: rgba(110, 231, 160, 0.07); }
+.up-result.lose { color: #e5a0b9; border-color: rgba(224, 106, 140, 0.35); background: rgba(224, 106, 140, 0.07); }
+.up-footer { display: flex; align-items: center; gap: 14px; margin-top: 16px; }
+.up-footer .casino-bet-summary { flex: 1; margin: 0; }
+.up-footer .casino-play { flex: 0 0 auto; padding-left: 26px; padding-right: 26px; }
+
+/* manual ban modal */
+.ban-photo-editor { display: flex; gap: 12px; align-items: flex-start; }
+.ban-photo-preview {
+  width: 150px;
+  height: 100px;
+  flex: 0 0 auto;
+  border-radius: 11px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  background: #120a1a;
+}
+.ban-photo-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ban-photo-editor .grow { min-width: 0; }
+.rank-lock { color: var(--p5) !important; border-color: rgba(196, 164, 218, 0.32) !important; background: rgba(76, 35, 101, 0.28) !important; }
+
+@media (max-width: 1080px) {
+  .casino-grid { grid-template-columns: 1fr; }
+  .casino-feed-list { max-height: 280px; }
+}
+@media (max-width: 980px) {
+  .roulette-layout { grid-template-columns: 1fr; }
+  .roulette-wheel { --r: 143px; }
+  .upgrader-layout { grid-template-columns: 1fr; }
+  .up-wheel-stage { order: -1; }
+  .up-nft-list { max-height: 240px; }
+  .up-footer { flex-direction: column; align-items: stretch; }
+  .up-footer .casino-play { width: 100%; }
+}
+@media (max-width: 760px) {
+  .casino-panel { padding: 13px; }
+  .roulette-wheel { width: 268px; height: 268px; --r: 114px; border-width: 6px; }
+  .roulette-hub { width: 92px; height: 92px; }
+  .roulette-hub b { font-size: 11px; }
+  .roulette-board { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .roulette-cell { padding: 8px 0; font-size: 10px; }
+  .roulette-result { max-width: 268px; }
+  .casino-tab { flex: 1; padding: 9px 8px; font-size: 11px; }
+  .up-wheel { width: 184px; height: 184px; }
+  .up-center { width: 70px; height: 70px; }
+  .up-center b { font-size: 15px; }
+  .ban-photo-editor { flex-direction: column; }
+  .ban-photo-preview { width: 100%; height: 130px; }
+}

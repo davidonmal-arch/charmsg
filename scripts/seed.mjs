@@ -1,8 +1,7 @@
 /**
- * Seeds CharMsg Firestore with the admin credential, demo rooms and market history.
+ * Seeds CharMsg Firestore with demo rooms and market history.
  * Usage: FIREBASE_TOKEN=... node scripts/seed.mjs
  */
-import { createHash } from "node:crypto";
 
 const PROJECT = "charmsg";
 const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
@@ -14,15 +13,6 @@ if (!TOKEN) {
 
 const now = Date.now();
 const DAY = 86_400_000;
-const login = "farnaz";
-const salt = "charmsg-v1";
-const password = process.env.SEED_ADMIN_PASSWORD;
-if (!password) {
-  console.error("SEED_ADMIN_PASSWORD is required (admin password is never stored in the repo)");
-  process.exit(1);
-}
-const hash = createHash("sha256").update(`${salt}::${login}::${password}`).digest("hex");
-
 function value(x) {
   if (x === null || x === undefined) return { nullValue: null };
   if (typeof x === "string") return { stringValue: x };
@@ -56,7 +46,10 @@ const admin = {
   nickLower: "farnaz",
   bio: "Создатель CharMsg. Анонимность — это свобода.",
   avatar: "./assets/logo.jpg",
+  banner: "",
   isAdmin: true,
+  verified: true,
+  rank: 5,
   coins: 100,
   chr: 0,
   chrCost: 0,
@@ -73,7 +66,10 @@ const system = {
   nickLower: "charmsg",
   bio: "Официальный аккаунт мессенджера. Новости, правила и обновления.",
   avatar: "./assets/logo.jpg",
+  banner: "",
   isAdmin: false,
+  verified: true,
+  rank: 2,
   coins: 100,
   chr: 0,
   chrCost: 0,
@@ -232,6 +228,117 @@ const chats = [
         text: "Долгая комната: сообщения живут 30 дней. Хорошее место для дневников и больших мыслей."
       }
     ]
+  },
+  {
+    id: "club",
+    data: {
+      name: "Закрытый клуб",
+      desc: "Приватный чат только для верифицированных администратором",
+      emoji: "🔒",
+      ttl: 7 * DAY,
+      isPublic: true,
+      isDM: false,
+      verifiedOnly: true,
+      members: [],
+      createdBy: "system_charmsg",
+      createdAt: now - 6 * DAY,
+      lastMessage: "Верифицированные участники видят этот чат. Остальные — нет.",
+      lastMessageAt: now - 5 * 3600_000,
+      lastSender: "admin_farnaz"
+    },
+    messages: [
+      {
+        id: "msg_club_1",
+        createdAt: now - 5.4 * 3600_000,
+        uid: "system_charmsg",
+        nick: "CharMsg",
+        isAdmin: false,
+        text: "Закрытый клуб. Доступ только у пользователей, которых администратор верифицировал в панели."
+      },
+      {
+        id: "msg_club_2",
+        createdAt: now - 5 * 3600_000,
+        uid: "admin_farnaz",
+        nick: "farnaz",
+        isAdmin: true,
+        text: "Верифицированные участники видят этот чат. Остальные — нет."
+      }
+    ]
+  }
+];
+
+const pastes = [
+  {
+    id: "paste_farnaz",
+    data: {
+      title: "farnaz: Архитектор CharMsg",
+      subject: "farnaz",
+      subjectUid: "admin_farnaz",
+      photo: "./assets/logo.jpg",
+      chapters: [
+        {
+          id: "ch_farnaz_1",
+          title: "Кто это",
+          text: "farnaz — создатель CharMsg. Появился вместе с первым сообщением мессенджера и с тех пор держит это место на плаву. Его ник переливается фиолетовым, а ранг — «Архитектор»."
+        },
+        {
+          id: "ch_farnaz_2",
+          title: "Правила",
+          text: "Уважать анонимность, не публиковать личные данные, не пытаться сохранять чужие переписки. За скриншоты — перманентный бан от 80 до 500 лет."
+        }
+      ],
+      authorUid: "admin_farnaz",
+      authorNick: "farnaz",
+      editors: [],
+      minRank: 0,
+      published: true,
+      publishedAt: now - 2 * DAY,
+      createdAt: now - 2 * DAY,
+      updatedAt: now - 2 * DAY
+    }
+  }
+];
+
+const nfts = [
+  {
+    id: "nft_genesis",
+    data: {
+      name: "Purple Genesis",
+      description: "Первый NFT CharMsg. Фиолетовое свечение и логотип у истоков анонимного мессенджера.",
+      image: "./assets/logo.jpg",
+      effect: "glow",
+      ownerUid: "admin_farnaz",
+      ownerNick: "farnaz",
+      createdBy: "admin_farnaz",
+      createdByNick: "farnaz",
+      forSale: true,
+      price: 500,
+      createdAt: now - 1 * DAY,
+      updatedAt: now - 1 * DAY,
+      soldAt: 0,
+      lastPrice: 0,
+      history: []
+    }
+  },
+  {
+    id: "nft_holo",
+    data: {
+      name: "Holo Signal",
+      description: "Голографический сигнал из закрытого клуба. Меняет оттенок в реальном времени.",
+      image: "./assets/logo.jpg",
+      effect: "holo",
+      ownerUid: "system_charmsg",
+      ownerNick: "CharMsg",
+      createdBy: "system_charmsg",
+      createdByNick: "CharMsg",
+      forSale: true,
+      price: 250,
+      createdAt: now - 12 * 3600_000,
+      updatedAt: now - 12 * 3600_000,
+      soldAt: 0,
+      lastPrice: 0,
+      history: []
+    }
   }
 ];
 
@@ -243,7 +350,6 @@ const botTrades = [
 ];
 
 async function main() {
-  await put("config/admin", { login, salt, hash, nick: "farnaz", createdAt: now });
   await put("users/admin_farnaz", admin);
   await put("users/system_charmsg", system);
   await put("market/state", {
@@ -270,6 +376,14 @@ async function main() {
     }
   }
 
+  for (const paste of pastes) {
+    await put(`pastes/${paste.id}`, paste.data);
+  }
+
+  for (const nft of nfts) {
+    await put(`nfts/${nft.id}`, nft.data);
+  }
+
   for (const t of botTrades) {
     await put(`trades/${t.id}`, {
       uid: `bot_${t.nick.toLowerCase()}`,
@@ -285,9 +399,10 @@ async function main() {
   }
 
   console.log("Seed complete:", {
-    adminHash: hash.slice(0, 12) + "…",
     chats: chats.length,
     messages: chats.reduce((n, c) => n + c.messages.length, 0),
+    pastes: pastes.length,
+    nfts: nfts.length,
     trades: botTrades.length
   });
 }
