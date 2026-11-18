@@ -592,6 +592,10 @@ export function playChance(data) {
   return runAction("playChance", data);
 }
 
+export function claimDailyReward() {
+  return runAction("claimDailyReward");
+}
+
 export function playClicker(taps) {
   return runAction("playClicker", { taps });
 }

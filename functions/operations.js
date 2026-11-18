@@ -588,6 +588,21 @@ async function settleChance(profile, bet, multiplier, win, round) {
   return { ...round, win, payout, amount: bet, net: payout - bet, multiplier };
 }
 
+const dailyRewardDate = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Yekaterinburg" });
+
+export async function claimDailyReward(uid) {
+  const day = dailyRewardDate.format(new Date());
+  const ref = db().collection("users").doc(uid);
+  return db().runTransaction(async (tx) => {
+    const account = (await tx.get(ref)).data();
+    if (!account || account.banned) throw new Error("Профиль недоступен");
+    if (account.lastDailyReward === day) return { reward: 0 };
+    const reward = 10;
+    tx.update(ref, { coins: Math.round(((Number(account.coins) || 0) + reward) * 100) / 100, lastDailyReward: day });
+    return { reward };
+  });
+}
+
 export async function playClicker(profile, { taps }) {
   if (!Array.isArray(taps) || taps.length < 5 || taps.length > 30 ||
       taps.some((time, index) => !Number.isInteger(time) || time < 0 || time > 10_000 || (index > 0 && time < taps[index - 1]))) {

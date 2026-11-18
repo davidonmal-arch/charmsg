@@ -276,6 +276,7 @@ const actions = {
   },
   enhanceNft: (user, key) => enhanceNft(user.uid, id(key)),
   playChance: (user, input) => ops.playChance(user, data(input)),
+  claimDailyReward: (user) => ops.claimDailyReward(user.uid),
   playClicker: (user, input) => ops.playClicker(user, data(input)),
   createNft: (user, input) => ops.createNft(user, data(input)),
   setNftSale: (user, key, price) => ops.setNftSale(id(key), user, price),

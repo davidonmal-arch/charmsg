@@ -231,6 +231,17 @@ for (let i = 0; i < 3; i++) {
 assert.equal((await profile(bob)).banType, "clicker");
 await invoke(admin, "adminUnbanUser", uid(bob));
 
+const beforeDailyReward = (await profile(alice)).coins;
+const claims = await Promise.all([
+  invoke(alice, "claimDailyReward"),
+  invoke(alice, "claimDailyReward")
+]);
+assert.deepEqual(claims.map(({ reward }) => reward).sort((a, b) => a - b), [0, 10]);
+assert.equal((await profile(alice)).coins, beforeDailyReward + 10);
+await users.doc(uid(alice)).update({ lastDailyReward: "2020-01-01" });
+assert.equal((await invoke(alice, "claimDailyReward")).reward, 10);
+assert.equal((await profile(alice)).coins, beforeDailyReward + 20);
+
 const passwordData = { login: "player_" + suffix, password: "new-test-password-001" };
 await reject(invoke(bob, "adminSetPlayerPassword", uid(alice), passwordData), "PERMISSION_DENIED");
 await reject(invoke(admin, "adminSetPlayerPassword", uid(admin), passwordData), "PERMISSION_DENIED");

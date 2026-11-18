@@ -2,6 +2,7 @@ import { enableMessagePush, optOutMessagePush, setupDefaultMessagePush } from ".
 import {
   banForScreenshot,
   checkAccess,
+  claimDailyReward,
   currentUid,
   ensureMarket,
   ensureAdminProfile,
@@ -298,6 +299,22 @@ function startMarketLoop() {
 }
 
 let firstProfile = true;
+const rewardDate = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Yekaterinburg" });
+let rewardCheckedOn;
+
+async function checkDailyReward() {
+  if (!state.profile || state.profile.banned || document.visibilityState === "hidden") return;
+  const today = rewardDate.format(new Date());
+  if (rewardCheckedOn === today) return;
+  rewardCheckedOn = today;
+  try {
+    const { reward } = await claimDailyReward();
+    if (reward) toast(`Ежедневная награда: +${reward} CR`, "success", 6000);
+  } catch (error) {
+    rewardCheckedOn = undefined;
+    console.warn("Daily reward unavailable", error.code || error.name);
+  }
+}
 
 async function startDefaultPush(uid) {
   const promptKey = "charmsg_push_prompted_" + uid;
@@ -456,6 +473,7 @@ async function boot() {
         loaded = active;
         if (active) {
           subscribeData();
+          checkDailyReward();
           startDefaultPush(state.uid).catch((error) => console.warn("Push setup failed", error.code || error.name));
         }
         else {
@@ -497,6 +515,7 @@ async function boot() {
 }
 
 window.addEventListener("hashchange", renderRoute);
+document.addEventListener("visibilitychange", checkDailyReward);
 onChange(updateHeader);
 
 window.addEventListener("online", () => toast("Соединение восстановлено", "success"));
