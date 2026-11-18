@@ -94,7 +94,6 @@ export async function verifyAdminSession() {
     const token = await auth.currentUser?.getIdTokenResult();
     if (token?.claims.admin === true && auth.currentUser.uid === ADMIN_UID) {
       adminSession = true;
-      await runAction("ensureAdminProfile");
       return true;
     }
     localStorage.removeItem("charmsg_admin_mode");
@@ -166,13 +165,24 @@ export async function adminLogout() {
   localStorage.removeItem("charmsg_admin_mode");
 }
 
-function subscribeAction(action, args, cb, onError, interval) {
+export function ensureAdminProfile() {
+  return runAction("ensureAdminProfile");
+}
+
+function subscribeAction(load, cb, onError, interval, allowed) {
   let active = true;
   let timer;
   let previous;
+  let failures = 0;
+  let running = false;
   async function refresh() {
+    if (!active || running) return;
+    clearTimeout(timer);
+    running = true;
     try {
-      const value = await runAction(action, ...args);
+      if (document.visibilityState === "hidden" || (allowed && !allowed())) return;
+      const value = await load();
+      failures = 0;
       if (!active) return;
       const snapshot = JSON.stringify(value);
       if (snapshot !== previous) {
@@ -181,16 +191,30 @@ function subscribeAction(action, args, cb, onError, interval) {
       }
     } catch (error) {
       if (active) {
-        if (previous !== undefined) cb([]);
-        previous = undefined;
-        onError?.(error);
+        failures += 1;
+        if (error.code === "functions/permission-denied" && previous !== undefined) {
+          cb([]);
+          previous = undefined;
+        }
+        if (failures === 1) onError?.(error);
       }
     } finally {
-      if (active) timer = setTimeout(refresh, interval);
+      running = false;
+      if (active) timer = setTimeout(refresh, failures ? Math.min(120_000, interval * (2 ** Math.min(failures, 5))) : interval);
     }
   }
+  const wake = () => {
+    if (!failures && document.visibilityState !== "hidden" && (!allowed || allowed())) refresh();
+  };
+  document.addEventListener("visibilitychange", wake);
+  if (allowed) window.addEventListener("hashchange", wake);
   refresh();
-  return () => { active = false; clearTimeout(timer); };
+  return () => {
+    active = false;
+    clearTimeout(timer);
+    document.removeEventListener("visibilitychange", wake);
+    if (allowed) window.removeEventListener("hashchange", wake);
+  };
 }
 
 // ---------------- profiles ----------------
@@ -260,7 +284,7 @@ export function subscribeUsers(cb, onError, max = 400) {
 
 // ---------------- chats ----------------
 export function subscribeChats(uid, cb, onError) {
-  return subscribeAction("listChats", [], cb, onError, 5000);
+  return subscribeAction(() => runAction("listChats"), cb, onError, 25_000);
 }
 
 export async function createPublicChat(data) {
@@ -280,7 +304,21 @@ export async function deleteChat(chatId) {
 }
 
 export function subscribeMessages(chatId, cb, onError) {
-  return subscribeAction("listMessages", [chatId], cb, onError, 2500);
+  let messages = [];
+  let lastFullRead = 0;
+  let newest = 0;
+  return subscribeAction(async () => {
+    const now = Date.now();
+    const full = now - lastFullRead >= 300_000;
+    const incoming = await runAction("listMessages", chatId, full ? null : Math.max(0, newest - 5000));
+    const merged = new Map((full ? [] : messages).map((message) => [message.id, message]));
+    for (const message of incoming) merged.set(message.id, message);
+    messages = [...merged.values()].filter((message) => message.expiresAt > now)
+      .sort((a, b) => a.createdAt - b.createdAt).slice(-50);
+    if (full) lastFullRead = now;
+    if (incoming.length) newest = Math.max(newest, incoming.at(-1).createdAt);
+    return messages;
+  }, cb, onError, 8000);
 }
 
 export async function sendMessage(chat, profile, text) {
@@ -473,8 +511,8 @@ export async function adminPurgeChat(chatId, max = 200) {
 }
 
 // ---------------- pastes ----------------
-export function subscribePastes(cb, onError) {
-  return subscribeAction("listPastes", [], cb, onError, 5000);
+export function subscribePastes(cb, onError, allowed) {
+  return subscribeAction(() => runAction("listPastes"), cb, onError, 45_000, allowed);
 }
 
 export function canEditPaste(paste, profile) {

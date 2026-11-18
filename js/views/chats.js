@@ -363,7 +363,12 @@ export function mountChats(container) {
       },
       (err) => {
         console.error(err);
-        messagesEl.innerHTML = `<div class="empty"><p>Не удалось загрузить сообщения. Проверьте соединение с Firestore.</p></div>`;
+        if (!local.messages.length) {
+          const message = err.code === "functions/resource-exhausted"
+            ? "Дневной лимит базы исчерпан. Сообщения загрузятся после сброса лимита."
+            : "Не удалось загрузить сообщения. Приложение попробует снова.";
+          messagesEl.innerHTML = `<div class="empty"><p>${message}</p></div>`;
+        }
       }
     );
     if (!isMobile()) setTimeout(() => inputEl.focus(), 60);

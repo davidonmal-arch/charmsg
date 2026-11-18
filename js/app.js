@@ -3,6 +3,7 @@ import {
   banForScreenshot,
   currentUid,
   ensureMarket,
+  ensureAdminProfile,
   expireBanIfNeeded,
   subscribeChats,
   subscribeCasino,
@@ -287,12 +288,12 @@ function wireHeader() {
 function startMarketLoop() {
   ensureMarket().catch((err) => console.warn("ensureMarket failed", err));
   const tick = () => {
-    if (document.visibilityState === "visible" && state.profile && !state.profile.banned) {
+    if (document.visibilityState === "visible" && state.route === "market" && state.profile && !state.profile.banned) {
       tickMarket().catch((err) => console.warn("market tick failed", err));
     }
   };
   setTimeout(tick, 2200);
-  setInterval(tick, 11_000);
+  setInterval(tick, 60_000);
 }
 
 let firstProfile = true;
@@ -381,7 +382,7 @@ async function boot() {
       },
       (err) => {
         console.error("chats subscription", err);
-        toast("Не удалось загрузить чаты", "error");
+        toast(err.code === "functions/resource-exhausted" ? "Дневной лимит базы исчерпан. Чаты загрузятся после сброса лимита." : "Не удалось загрузить чаты", "error", 7500);
       }
     ));
 
@@ -414,7 +415,8 @@ async function boot() {
         state.pastes = pastes;
         notify();
       },
-      (err) => console.warn("pastes subscription", err)
+      (err) => console.warn("pastes subscription", err),
+      () => state.route === "pastes"
     ));
 
     subscriptions.push(subscribeNfts(
@@ -449,9 +451,11 @@ async function boot() {
       if (firstProfile) {
         firstProfile = false;
         hideBoot();
-        if (!profile) showOnboarding();
+        if (!profile && state.admin) {
+          ensureAdminProfile().catch((error) => toast(error.message, "error", 7500));
+        }
       }
-      if (!profile) showOnboarding();
+      if (!profile && !state.admin) showOnboarding();
       updateHeader();
       notify();
       if (profile?.banned && currentRoute() !== "ban") {
@@ -462,7 +466,7 @@ async function boot() {
     },
     (err) => {
       console.error("profile subscription", err);
-      toast("Нет доступа к профилю в Firestore", "error");
+      toast(err.code === "resource-exhausted" ? "Дневной лимит базы исчерпан. Попробуйте после его сброса." : "Нет доступа к профилю в Firestore", "error", 7500);
       hideBoot();
     }
   );

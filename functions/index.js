@@ -138,11 +138,15 @@ const actions = {
     }
     return [...result.values()].sort((a, b) => (b.lastMessageAt || b.createdAt || 0) - (a.lastMessageAt || a.createdAt || 0));
   },
-  async listMessages(user, key) {
+  async listMessages(user, key, since) {
     await authorizedChat(key, user);
-    const messages = await db().collection("chats").doc(key).collection("messages")
-      .where("expiresAt", ">", Date.now()).orderBy("expiresAt", "desc").limit(300).get();
+    const now = Date.now();
+    const collection = db().collection("chats").doc(key).collection("messages");
+    const messages = Number.isSafeInteger(since) && since > 0
+      ? await collection.where("createdAt", ">=", since).orderBy("createdAt", "desc").limit(50).get()
+      : await collection.where("expiresAt", ">", now).orderBy("expiresAt", "desc").limit(50).get();
     return messages.docs.map((snap) => ({ ...snap.data(), id: snap.id }))
+      .filter((message) => message.expiresAt > now)
       .sort((a, b) => a.createdAt - b.createdAt);
   },
   createPublicChat: (user, input) => ops.createPublicChat({ ...data(input), uid: user.uid, ttl: ttlValue(input.ttl) }),
@@ -242,6 +246,8 @@ const actions = {
 };
 
 const withoutProfile = new Set(["createProfile", "ensureAdminProfile", "ensureMarket", "listChats", "listPastes"]);
+let quotaRetryAt = 0;
+const quotaError = () => new HttpsError("resource-exhausted", "Временный лимит Firestore исчерпан. Попробуйте позже.");
 export const charmsgAction = onCall({
   maxInstances: 8,
   cors: process.env.CHARMSG_WEB_ORIGIN || true
@@ -251,14 +257,19 @@ export const charmsgAction = onCall({
   if (typeof action !== "string" || !Object.hasOwn(actions, action) || !Array.isArray(args)) {
     throw new HttpsError("invalid-argument", "Неизвестное действие");
   }
-  const profile = await read("users", auth.uid);
-  if (!profile && !withoutProfile.has(action)) throw new HttpsError("failed-precondition", "Сначала создайте профиль");
-  if (profile && action === "createProfile") throw new HttpsError("already-exists", "Профиль уже существует");
-  if (profile?.banned && action !== "expireBanIfNeeded") throw denied();
+  if (Date.now() < quotaRetryAt) throw quotaError();
   try {
+    const profile = await read("users", auth.uid);
+    if (!profile && !withoutProfile.has(action)) throw new HttpsError("failed-precondition", "Сначала создайте профиль");
+    if (profile && action === "createProfile") throw new HttpsError("already-exists", "Профиль уже существует");
+    if (profile?.banned && action !== "expireBanIfNeeded") throw denied();
     return (await actions[action](authenticatedProfile(auth, profile), ...args)) ?? null;
   } catch (error) {
     if (error instanceof HttpsError) throw error;
+    if (error.code === 8) {
+      quotaRetryAt = Date.now() + 60_000;
+      throw quotaError();
+    }
     if (typeof error.code === "number") {
       console.error(error);
       throw new HttpsError("internal", "Операция не выполнена");
