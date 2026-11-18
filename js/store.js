@@ -236,7 +236,21 @@ export async function isNickTaken(nick, exceptUid = "") {
 }
 
 export async function createProfile(uid, data) {
-  return runAction("createProfile", data);
+  const retryable = (error) => ["functions/internal", "functions/unavailable"].includes(error.code);
+  try {
+    return await runAction("createProfile", data);
+  } catch (error) {
+    if (error.code === "functions/already-exists") return;
+    if (!retryable(error)) throw error;
+  }
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  try {
+    return await runAction("createProfile", data);
+  } catch (error) {
+    if (error.code === "functions/already-exists") return;
+    if (retryable(error)) throw new Error("Не удалось связаться с сервером CharMsg. Попробуйте ещё раз через минуту.");
+    throw error;
+  }
 }
 
 export async function updateProfile(uid, data) {
