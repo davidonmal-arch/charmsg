@@ -1374,6 +1374,12 @@ table.admin-table { width: 100%; border-collapse: collapse; font-size: 12px; min
 .nft-price-input { flex: 1; min-width: 70px; padding: 7px 9px; font-size: 11px; }
 .nft-actions .btn-sm { padding: 6px 9px; font-size: 10.5px; }
 .nft-create-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; }
+#nftEffects {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 105px), 1fr));
+}
+#nftEffects .quick-btn { min-width: 0; min-height: 34px; white-space: normal; overflow-wrap: anywhere; }
+
 .nft-preview { border-radius: 14px; border: 1px solid var(--line); aspect-ratio: 1 / 1; }
 .nft-create-modal .modal { max-width: 720px; }
 .nft-feed-row .feed-amount { font-size: 9.5px; }
