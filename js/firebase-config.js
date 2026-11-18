@@ -11,4 +11,4 @@ export const firebaseConfig = {
 };
 
 // Public HTTPS origin of the deployed Render service.
-export const apiOrigin = "";
+export const apiOrigin = "https://charmsg-api.onrender.com";
