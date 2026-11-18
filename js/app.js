@@ -1,3 +1,4 @@
+import { enableMessagePush, optOutMessagePush, setupDefaultMessagePush } from "./push.js";
 import {
   banForScreenshot,
   currentUid,
@@ -296,6 +297,37 @@ function startMarketLoop() {
 
 let firstProfile = true;
 
+async function startDefaultPush(uid) {
+  const promptKey = "charmsg_push_prompted_" + uid;
+  const options = await setupDefaultMessagePush(uid);
+  if (!options || state.uid !== uid || state.profile?.banned || localStorage.getItem(promptKey)) return;
+  localStorage.setItem(promptKey, "1");
+  const modal = openModal(`
+    <button class="modal-close" data-close aria-label="Закрыть">×</button>
+    <h3 class="modal-title">Уведомления о личных сообщениях</h3>
+    <p class="modal-sub">Разреши уведомления, чтобы получать их, даже когда CharMsg закрыт.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" type="button" data-skip-push>Не сейчас</button>
+      <button class="btn btn-primary" type="button" data-enable-push>Разрешить</button>
+    </div>`);
+  modal.body.querySelector("[data-skip-push]").onclick = () => {
+    optOutMessagePush(uid);
+    modal.close();
+  };
+  const button = modal.body.querySelector("[data-enable-push]");
+  button.onclick = async () => {
+    button.disabled = true;
+    try {
+      await enableMessagePush(options);
+      toast("Уведомления включены", "success");
+    } catch (error) {
+      toast(error.message || "Не удалось включить уведомления", "error");
+    } finally {
+      modal.close();
+    }
+  };
+}
+
 async function boot() {
   try {
     state.admin = await verifyAdminSession();
@@ -403,7 +435,10 @@ async function boot() {
         for (const unsubscribe of subscriptions) unsubscribe();
         subscriptions = [];
         loaded = active;
-        if (active) subscribeData();
+        if (active) {
+          subscribeData();
+          startDefaultPush(state.uid).catch((error) => console.warn("Push setup failed", error.code || error.name));
+        }
         else {
           state.users = new Map();
           for (const name of ["chats", "pastes", "nfts", "trades", "casino"]) state[name] = [];

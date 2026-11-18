@@ -7,7 +7,9 @@ import {
   createNft,
   deleteNft,
   effectClass,
+  giftNft,
   nftTitle,
+  nftResaleLimit,
   setFeaturedNft,
   setNftSale,
   tickMarket,
@@ -416,6 +418,8 @@ export function mountMarket(container) {
     const own = nft.ownerUid === state.uid;
     const owner = userOf(nft.ownerUid) || { nick: nft.ownerNick || "Аноним", avatar: "" };
     const price = Number(nft.price) || 0;
+    const cap = nftResaleLimit(nft);
+    const eligibleSale = nft.forSale && price <= cap;
     return `<article class="nft-card" data-nft="${nft.id}">
       <div class="nft-art ${effectClass(nft.effect)}">
         ${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy" />` : `<span class="nft-noimg">◈</span>`}
@@ -435,14 +439,16 @@ export function mountMarket(container) {
         </div>
         <div class="nft-actions">
           ${own
-            ? `<input class="input nft-price-input" data-nft-price="${nft.id}" inputmode="decimal" placeholder="цена CR" value="${nft.forSale ? price : ""}" />
+            ? `${nft.lastPrice > 0 ? `<p class="hint">Максимум ${fmtNum(cap, 2)} CR (3× от покупки)</p>` : ""}
+               <input class="input nft-price-input" data-nft-price="${nft.id}" inputmode="decimal" placeholder="цена CR" value="${nft.forSale ? price : ""}" />
                <button class="btn btn-sm btn-primary" data-nft-list="${nft.id}" type="button">${nft.forSale ? "Обновить" : "Выставить"}</button>
                ${nft.forSale ? `<button class="btn btn-sm btn-ghost" data-nft-unlist="${nft.id}" type="button">Снять</button>` : ""}
+               <button class="btn btn-sm btn-ghost" data-nft-gift="${escapeHtml(nft.id)}" type="button">Передать</button>
                <button class="btn btn-sm btn-ghost" data-nft-feature="${escapeHtml(nft.id)}" type="button">${state.profile?.featuredNftId === nft.id ? "Убрать из профиля" : "В профиль"}</button>
                <button class="btn btn-sm btn-danger" data-nft-delete="${nft.id}" type="button" title="Удалить NFT">×</button>`
-            : nft.forSale
+            : eligibleSale
               ? `<button class="btn btn-sm btn-primary btn-block" data-nft-buy="${nft.id}" type="button">Купить за ${fmtNum(price, 2)} CR</button>`
-              : `<span class="hint">Не выставлен на продажу</span>`}
+              : `<span class="hint">${nft.forSale ? "Цена выше лимита перепродажи" : "Не выставлен на продажу"}</span>`}
         </div>
       </div>
     </article>`;
@@ -451,7 +457,7 @@ export function mountMarket(container) {
   function refreshNfts() {
     const all = state.nfts || [];
     const list = all.filter((nft) => {
-      if (nftFilter === "sale") return !!nft.forSale;
+      if (nftFilter === "sale") return !!nft.forSale && Number(nft.price) <= nftResaleLimit(nft);
       if (nftFilter === "mine") return nft.ownerUid === state.uid;
       return true;
     });
@@ -707,6 +713,39 @@ export function mountMarket(container) {
   createNftBtn.addEventListener("click", openCreateNft);
 
   nftGrid.addEventListener("click", async (e) => {
+    const giftButton = e.target.closest("[data-nft-gift]");
+    if (giftButton) {
+      const nft = state.nfts.find((item) => item.id === giftButton.dataset.nftGift);
+      if (!nft) return;
+      const modal = openModal(`
+        <button class="modal-close" data-close aria-label="Закрыть">×</button>
+        <h3 class="modal-title">Передать ${escapeHtml(nftTitle(nft))}</h3>
+        <p class="modal-sub">Получатель получит NFT бесплатно. С твоего баланса спишется комиссия 1 CR.</p>
+        <form>
+          <div class="field">
+            <label for="giftRecipient">Ник получателя</label>
+            <input class="input" id="giftRecipient" name="recipient" autocomplete="off" minlength="2" maxlength="18" required />
+          </div>
+          <p class="error-text" role="alert"></p>
+          <button class="btn btn-primary btn-block" type="submit">Передать за 1 CR</button>
+        </form>`);
+      const form = modal.body.querySelector("form");
+      const submit = form.querySelector("button");
+      form.elements.recipient.focus();
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        submit.disabled = true;
+        try {
+          const result = await giftNft(nft.id, form.elements.recipient.value);
+          modal.close();
+          toast(`NFT передан игроку ${result.recipientNick}`, "success");
+        } catch (error) {
+          form.querySelector('[role="alert"]').textContent = error.message;
+          submit.disabled = false;
+        }
+      });
+      return;
+    }
     const featureBtn = e.target.closest("[data-nft-feature]");
     if (featureBtn) {
       const key = featureBtn.dataset.nftFeature;

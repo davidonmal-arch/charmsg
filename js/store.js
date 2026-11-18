@@ -557,8 +557,17 @@ export async function createNft(profile, data) {
   return runAction("createNft", data);
 }
 
+export function nftResaleLimit(nft) {
+  const paid = Number(nft?.lastPrice);
+  return Number.isFinite(paid) && paid > 0 ? Math.min(1_000_000_000, Math.round(paid * 300) / 100) : 1_000_000_000;
+}
+
 export async function setNftSale(nftId, profile, price) {
   return runAction("setNftSale", nftId, price);
+}
+
+export function giftNft(nftId, recipientNick) {
+  return runAction("giftNft", nftId, recipientNick);
 }
 
 export async function buyNft(nftId, profile) {

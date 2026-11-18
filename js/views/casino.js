@@ -7,6 +7,7 @@ import {
   UPGRADE_MIN_CHANCE,
   effectClass,
   nftTitle,
+  nftResaleLimit,
   playUpgrade,
   rouletteColor,
   spinRoulette
@@ -259,7 +260,7 @@ export function mountCasino(container) {
   const feedEl = $("casinoFeed");
 
   const ownNfts = () => (state.nfts || []).filter((n) => n.ownerUid === state.uid);
-  const saleNfts = () => (state.nfts || []).filter((n) => n.forSale && n.ownerUid !== state.uid);
+  const saleNfts = () => (state.nfts || []).filter((n) => n.forSale && Number(n.price) <= nftResaleLimit(n) && n.ownerUid !== state.uid);
 
   function selectedStakeNft() {
     return ownNfts().find((n) => n.id === stakeNftId) || null;

@@ -306,7 +306,7 @@ export function mountProfile(container) {
         openPlayerLoginModal({ link: true, onLinked: refresh });
         return;
       }
-      disableMessagePush().catch(() => {}).then(signOutPlayer).then(() => location.reload()).catch((error) => toast(error.message, "error"));
+      disableMessagePush({ remember: false }).catch(() => {}).then(signOutPlayer).then(() => location.reload()).catch((error) => toast(error.message, "error"));
     };
 
     const adminBtn = $("adminActionBtn");
@@ -489,6 +489,8 @@ export function mountProfile(container) {
       await refreshPush().catch(() => { pushButton.disabled = false; });
     }
   };
+  const refreshPushState = () => refreshPush().catch(() => {});
+  window.addEventListener("charmsg:push-changed", refreshPushState);
   const stopPushInit = onChange(() => {
     if (!state.profile) return;
     stopPushInit();
@@ -501,5 +503,10 @@ export function mountProfile(container) {
   const unsub = onChange(refresh);
   refresh();
 
-  return () => { unsub(); stopPushInit(); stopFeatured?.(); };
+  return () => {
+    unsub();
+    stopPushInit();
+    stopFeatured?.();
+    window.removeEventListener("charmsg:push-changed", refreshPushState);
+  };
 }

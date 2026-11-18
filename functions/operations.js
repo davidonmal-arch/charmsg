@@ -613,7 +613,7 @@ export async function playUpgrade(profile, {
     if (targetNftRef && !targetNftSnap.exists()) throw new Error("NFT-цель не найден");
     const targetNft = targetNftSnap?.data();
     if (targetNftRef) {
-      if (!targetNft.forSale) throw new Error("NFT-цель не выставлен на продажу");
+      if (!targetNft.forSale || targetNft.price > nftResaleLimit(targetNft)) throw new Error("NFT-цель недоступна по этой цене");
       if (targetNft.ownerUid === profile.uid) throw new Error("Нельзя апгрейдить на свой NFT");
     }
     const targetOwnerRef = targetNftRef && targetNft.ownerUid ? doc(db, "users", targetNft.ownerUid) : null;
@@ -754,6 +754,11 @@ export async function createNft(profile, { name, description = "", image = "", e
   return ref.id;
 }
 
+export function nftResaleLimit(nft) {
+  const paid = Number(nft?.lastPrice);
+  return Number.isFinite(paid) && paid > 0 ? Math.min(1_000_000_000, Math.round(paid * 300) / 100) : 1_000_000_000;
+}
+
 export async function setNftSale(nftId, profile, price) {
   const value = clamp(Number(price) || 0, 0, 1_000_000_000);
   return runTransaction(db, async (tx) => {
@@ -762,6 +767,8 @@ export async function setNftSale(nftId, profile, price) {
     if (!snap.exists()) throw new Error("NFT не найден");
     const nft = snap.data();
     if (nft.ownerUid !== profile.uid && !profile.isAdmin) throw new Error("Это не ваш NFT");
+    const cap = nftResaleLimit(nft);
+    if (value > cap) throw new Error(`Максимальная цена перепродажи — ${cap} CR (3× от покупки)`);
     tx.update(ref, {
       forSale: value > 0,
       price: value,
@@ -782,6 +789,7 @@ export async function buyNft(nftId, profile) {
     if (nft.ownerUid === profile.uid) throw new Error("Это уже ваш NFT");
     const price = Math.max(0, Number(nft.price) || 0);
     if (price <= 0) throw new Error("У NFT не указана цена");
+    if (price > nftResaleLimit(nft)) throw new Error("Владелец должен снизить цену NFT до лимита перепродажи");
     const buyerSnap = await tx.get(buyerRef);
     if (!buyerSnap.exists()) throw new Error("Профиль покупателя не найден");
     const buyer = buyerSnap.data();
@@ -837,4 +845,43 @@ export async function deleteNft(nftId, profile) {
   const nft = snap.data();
   if (nft.ownerUid !== profile.uid && !profile.isAdmin) throw new Error("Удалять NFT может только владелец или админ");
   await deleteDoc(ref);
+}
+
+export async function giftNft(nftId, senderUid, recipientNick) {
+  const nick = typeof recipientNick === "string" ? recipientNick.trim().toLowerCase() : "";
+  if (nick.length < 2 || nick.length > 18) throw new Error("Укажите ник получателя");
+  const fee = 1;
+  return db().runTransaction(async (tx) => {
+    const users = db().collection("users");
+    const nftRef = db().collection("nfts").doc(nftId);
+    const senderRef = users.doc(senderUid);
+    const [nftSnap, senderSnap, recipients] = await Promise.all([
+      tx.get(nftRef),
+      tx.get(senderRef),
+      tx.get(users.where("nickLower", "==", nick).limit(2))
+    ]);
+    const nft = nftSnap.data();
+    const sender = senderSnap.data();
+    if (!nft || nft.ownerUid !== senderUid) throw new Error("Передать NFT может только его владелец");
+    if (!sender || sender.banned) throw new Error("Профиль недоступен");
+    if (recipients.size !== 1) throw new Error("Не удалось найти получателя по этому нику");
+    const [recipientSnap] = recipients.docs;
+    const recipient = recipientSnap.data();
+    if (recipientSnap.id === senderUid) throw new Error("Нельзя подарить NFT себе");
+    if (recipient.banned || recipientSnap.id === "system_charmsg") throw new Error("Получатель недоступен");
+    const coins = Number(sender.coins) || 0;
+    if (coins < fee) throw new Error("Для передачи нужен 1 CR на балансе");
+    const now = Date.now();
+    const history = Array.isArray(nft.history) ? nft.history.slice(-99) : [];
+    history.push({ uid: recipientSnap.id, nick: recipient.nick, price: 0, fee, ts: now, via: "gift" });
+    tx.update(senderRef, {
+      coins: Math.round((coins - fee) * 100) / 100,
+      ...(sender.featuredNftId === nftId ? { featuredNftId: null } : {})
+    });
+    tx.update(nftRef, {
+      ownerUid: recipientSnap.id, ownerNick: recipient.nick,
+      forSale: false, price: 0, updatedAt: now, history
+    });
+    return { fee, recipientNick: recipient.nick };
+  });
 }

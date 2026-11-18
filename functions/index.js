@@ -232,6 +232,7 @@ const actions = {
   },
   createNft: (user, input) => ops.createNft(user, data(input)),
   setNftSale: (user, key, price) => ops.setNftSale(id(key), user, price),
+  giftNft: (user, key, nick) => ops.giftNft(id(key), user.uid, nick),
   buyNft: (user, key) => ops.buyNft(id(key), user),
   deleteNft: (user, key) => ops.deleteNft(id(key), user),
   trade: (user, side, amount) => {
