@@ -68,6 +68,23 @@ function authenticatedProfile(auth, profile) {
   return { ...profile, uid: auth.uid, isAdmin: isAdmin(auth) };
 }
 
+// shortcut: reuse public room metadata for 15 seconds per instance; private rooms are always read per account.
+let publicChatRead;
+let publicChatReadUntil = 0;
+const recentPurges = new Map();
+
+function listPublicChats(chats) {
+  if (!publicChatRead || publicChatReadUntil <= Date.now()) {
+    publicChatReadUntil = Date.now() + 15_000;
+    const pending = chats.where("isPublic", "==", true).get();
+    publicChatRead = pending;
+    pending.catch(() => {
+      if (publicChatRead === pending) publicChatRead = undefined;
+    });
+  }
+  return publicChatRead;
+}
+
 const actions = {
   setUsername: (user, value) => community.setUsername(user.uid, value),
   findPlayer: (_, value) => community.findPlayer(value),
@@ -176,7 +193,7 @@ const actions = {
   async listChats(user) {
     const chats = db().collection("chats");
     const [publicChats, privateChats] = await Promise.all([
-      chats.where("isPublic", "==", true).get(),
+      listPublicChats(chats),
       chats.where("members", "array-contains", user.uid).get()
     ]);
     const result = new Map();
@@ -201,18 +218,24 @@ const actions = {
       .filter((message) => message.expiresAt > now)
       .sort((a, b) => a.createdAt - b.createdAt);
   },
-  createPublicChat: (user, input) => ops.createPublicChat({ ...data(input), uid: user.uid, ttl: ttlValue(input.ttl) }),
+  async createPublicChat(user, input) {
+    const chatId = await ops.createPublicChat({ ...data(input), uid: user.uid, ttl: ttlValue(input.ttl) });
+    publicChatRead = undefined;
+    return chatId;
+  },
   async openDM(user, peer) {
     if (!await read("users", peer)) throw new HttpsError("not-found", "Пользователь не найден");
     return ops.openDM(user.uid, peer);
   },
   async updateChatTtl(user, key, ttl) {
     await authorizedChat(key, user, true);
-    return ops.updateChatTtl(key, ttlValue(ttl));
+    await ops.updateChatTtl(key, ttlValue(ttl));
+    publicChatRead = undefined;
   },
   async deleteChat(user, key) {
     await authorizedChat(key, user, true);
-    return db().recursiveDelete(db().collection("chats").doc(key));
+    await db().recursiveDelete(db().collection("chats").doc(key));
+    publicChatRead = undefined;
   },
   async sendMessage(user, key, text) {
     const chat = await authorizedChat(key, user);
@@ -231,7 +254,18 @@ const actions = {
   },
   async purgeExpiredMessages(user, key, max) {
     await authorizedChat(key, user);
-    return ops.purgeExpiredMessages(key, Math.min(200, Math.max(1, Math.floor(Number(max) || 40))));
+    const count = Math.min(200, Math.max(1, Math.floor(Number(max) || 40)));
+    if (user.isAdmin) return ops.purgeExpiredMessages(key, count);
+    const now = Date.now();
+    if ((recentPurges.get(key) || 0) > now) return 0;
+    if (recentPurges.size >= 256) recentPurges.delete(recentPurges.keys().next().value);
+    recentPurges.set(key, now + 300_000);
+    try {
+      return await ops.purgeExpiredMessages(key, count);
+    } catch (error) {
+      recentPurges.delete(key);
+      throw error;
+    }
   },
   async listPastes(user) {
     const pastes = db().collection("pastes");

@@ -293,9 +293,8 @@ function wireHeader() {
 }
 
 function startMarketLoop() {
-  ensureMarket().catch((err) => console.warn("ensureMarket failed", err));
   const tick = () => {
-    if (document.visibilityState === "visible" && state.route === "market" && state.profile && !state.profile.banned) {
+    if (document.visibilityState === "visible" && state.route === "market" && state.profile && !state.profile.banned && state.market?.bots !== false) {
       tickMarket().catch((err) => console.warn("market tick failed", err));
     }
   };
@@ -310,7 +309,7 @@ let rewardCheckedOn;
 async function checkDailyReward() {
   if (!state.profile || state.profile.banned || document.visibilityState === "hidden") return;
   const today = rewardDate.format(new Date());
-  if (rewardCheckedOn === today) return;
+  if (rewardCheckedOn === today || state.profile.lastDailyReward === today) return;
   rewardCheckedOn = today;
   try {
     const { reward } = await claimDailyReward();
@@ -437,7 +436,6 @@ async function boot() {
     ));
 
     subscriptions.push(subscribeChats(
-      state.uid,
       (chats) => {
         state.chats = chats;
         notify();
@@ -452,6 +450,7 @@ async function boot() {
     subscriptions.push(subscribeOnRoutes(() => subscribeMarket(
       (market) => {
         state.market = market;
+        if (!market) ensureMarket().catch((error) => console.warn("Market startup failed", error.code));
         notify();
       },
       (err) => console.warn("market subscription", err)

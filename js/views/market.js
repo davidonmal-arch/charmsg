@@ -14,7 +14,6 @@ import {
   nftResaleLimit,
   setFeaturedNft,
   setNftSale,
-  tickMarket,
   trade
 } from "../store.js";
 import {
@@ -878,7 +877,6 @@ export function mountMarket(container) {
 
   const unsub = onChange(refresh);
   refresh();
-  tickMarket();
 
   return () => unsub();
 }

@@ -232,13 +232,6 @@ export function validateNick(nick) {
   return "";
 }
 
-export async function isNickTaken(nick, exceptUid = "") {
-  const nickLower = String(nick || "").trim().toLowerCase();
-  if (!nickLower) return false;
-  const snap = await getDocs(query(collection(db, "users"), where("nickLower", "==", nickLower), limit(3)));
-  return snap.docs.some((d) => d.id !== exceptUid);
-}
-
 export async function createProfile(uid, data) {
   const retryable = (error) => ["functions/internal", "functions/unavailable"].includes(error.code);
   try {
@@ -303,7 +296,7 @@ export function subscribeUsers(cb, onError, max = 400) {
 }
 
 // ---------------- chats ----------------
-export function subscribeChats(uid, cb, onError, allowed) {
+export function subscribeChats(cb, onError, allowed) {
   return subscribeAction(() => runAction("listChats"), cb, onError, 30_000, allowed);
 }
 
@@ -373,7 +366,9 @@ export async function ensureMarket() {
 }
 
 export function subscribeMarket(cb, onError) {
-  return onSnapshot(MARKET_REF(), (snap) => cb(snap.exists() ? snap.data() : null), onError);
+  return onSnapshot(MARKET_REF(), { includeMetadataChanges: true }, (snap) => {
+    if (snap.exists() || !snap.metadata.fromCache) cb(snap.data() || null);
+  }, onError);
 }
 
 export function subscribeTrades(cb, onError) {

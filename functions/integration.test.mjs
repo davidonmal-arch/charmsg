@@ -254,6 +254,32 @@ assert.equal((await direct(alice, "users/" + uid(alice), "PATCH", gradientField)
 assert.equal((await direct(admin, "users/" + uid(alice) + "?updateMask.fieldPaths=nickGradient", "PATCH", gradientField)).status, 200);
 assert.equal((await profile(alice)).nickGradient, "aurora");
 
+await invoke(admin, "ensureMarket");
+const marketRef = db.doc("market/state");
+await marketRef.update({ lastTick: 0, bots: true });
+const botTrades = db.collection("trades").where("isBot", "==", true);
+const countBeforeTick = (await botTrades.count().get()).data().count;
+await Promise.all([invoke(alice, "tickMarket"), invoke(bob, "tickMarket")]);
+await invoke(admin, "tickMarket");
+assert.equal((await botTrades.count().get()).data().count, countBeforeTick + 1);
+
+const cachedRoom = await invoke(admin, "createPublicChat", { name: "Cached room" });
+assert.ok((await invoke(alice, "listChats")).some((chat) => chat.id === cachedRoom));
+await db.collection("chats").doc(cachedRoom).update({ verifiedOnly: true });
+await invoke(admin, "updateChatTtl", cachedRoom, 86400000);
+assert.ok(!(await invoke(alice, "listChats")).some((chat) => chat.id === cachedRoom));
+assert.ok((await invoke(bob, "listChats")).some((chat) => chat.id === cachedRoom));
+await invoke(admin, "deleteChat", cachedRoom);
+assert.ok(!(await invoke(bob, "listChats")).some((chat) => chat.id === cachedRoom));
+
+const purgeRoom = await invoke(alice, "createPublicChat", { name: "Purge test" });
+const expired = () => db.collection("chats").doc(purgeRoom).collection("messages").add({ expiresAt: Date.now() - 1 });
+await expired();
+assert.equal(await invoke(alice, "purgeExpiredMessages", purgeRoom), 1);
+await expired();
+assert.equal(await invoke(bob, "purgeExpiredMessages", purgeRoom), 0);
+assert.equal(await invoke(admin, "purgeExpiredMessages", purgeRoom), 1);
+
 const passwordData = { login: "player_" + suffix, password: "new-test-password-001" };
 await reject(invoke(bob, "adminSetPlayerPassword", uid(alice), passwordData), "PERMISSION_DENIED");
 await reject(invoke(admin, "adminSetPlayerPassword", uid(admin), passwordData), "PERMISSION_DENIED");

@@ -724,9 +724,7 @@ export function mountAdmin(container) {
     location.reload();
   });
 
-  // seed admin profile on server if missing (ensures shimmer identity exists)
   loadUsers();
-  loadStats();
   refreshAll();
 
   const unsub = onChange(refreshAll);

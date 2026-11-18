@@ -100,6 +100,7 @@ function pushHistory(history, price, now) {
 }
 
 let tickBusy = false;
+let lastTickAttempt = 0;
 function cleanChapters(chapters) {
   return (Array.isArray(chapters) ? chapters : [])
     .slice(0, 24)
@@ -399,8 +400,9 @@ export async function trade(uid, side, rawAmount) {
 }
 
 export async function tickMarket() {
-  if (tickBusy) return;
+  if (tickBusy || Date.now() - lastTickAttempt < 60_000) return;
   tickBusy = true;
+  lastTickAttempt = Date.now();
   try {
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(MARKET_REF());
@@ -408,7 +410,7 @@ export async function tickMarket() {
       const market = snap.data();
       if (market.bots === false) return;
       const now = Date.now();
-      if (now - (Number(market.lastTick) || 0) < 9000) return;
+      if (now - (Number(market.lastTick) || 0) < 60_000) return;
       const price = Math.max(1, Number(market.price) || 100);
       const liq = Math.max(1000, Number(market.liq) || 12000);
       const bot = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
