@@ -19,7 +19,7 @@ let shownAt = 0;
 export function reportQuota(error) {
   if (!["resource-exhausted", "functions/resource-exhausted"].includes(error?.code)) return false;
   const notice = document.getElementById("quotaNotice");
-  if (!notice.hidden) return true;
+  if (!notice || !notice.hidden) return true;
   shownAt = Date.now();
   const reset = quotaResetTime();
   notice.textContent = `Технические работы. Дневной лимит базы исчерпан. Ориентировочно до ${localReset.format(reset)} по Екатеринбургу.`;
@@ -30,6 +30,7 @@ export function reportQuota(error) {
 export function clearQuota(startedAt = Date.now()) {
   if (startedAt < shownAt) return;
   const notice = document.getElementById("quotaNotice");
+  if (!notice) return;
   notice.hidden = true;
   notice.textContent = "";
 }
