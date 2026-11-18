@@ -6,6 +6,7 @@ import {
   UPGRADE_MAX_CHANCE,
   UPGRADE_MIN_CHANCE,
   effectClass,
+  nftTitle,
   playUpgrade,
   rouletteColor,
   spinRoulette
@@ -345,7 +346,7 @@ export function mountCasino(container) {
     return `<button type="button" class="up-nft ${selected ? "active" : ""}" ${attr}="${escapeHtml(nft.id)}">
       <span class="up-nft-art ${effectClass(nft.effect)}">${nftArt(nft)}</span>
       <span class="up-nft-body">
-        <span class="up-nft-name">${escapeHtml(nft.name || "NFT")}</span>
+        <span class="up-nft-name">${escapeHtml(nftTitle(nft))}</span>
         <span class="up-nft-price">${fmtNum(owner ? nftValue(nft) : nftStakeValue(nft), 2)} CR</span>
         ${owner ? `<span class="up-nft-owner">${escapeHtml(nft.ownerNick || "Аноним")}</span>` : ""}
       </span>

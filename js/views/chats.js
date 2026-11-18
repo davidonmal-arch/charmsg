@@ -386,7 +386,9 @@ export function mountChats(container) {
   let autoOpened = false;
   function renderAll() {
     renderList();
-    if (state.activeChatId && state.activeChatId !== local.chatId) openChat(state.activeChatId);
+    if (state.activeChatId !== local.chatId && state.chats.some((chat) => chat.id === state.activeChatId)) {
+      openChat(state.activeChatId);
+    }
     if (local.chatId) {
       if (!state.chats.some((c) => c.id === local.chatId)) {
         closeRoom();

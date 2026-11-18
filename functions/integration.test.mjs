@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { generateVAPIDKeys } from "web-push";
 import { fileURLToPath } from "node:url";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
@@ -15,7 +16,7 @@ const authBase = "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accoun
 const callable = "http://127.0.0.1:5002/charmsgAction";
 const origin = "https://davidonmal-arch.github.io";
 const server = spawn(process.execPath, [fileURLToPath(new URL("./server.js", import.meta.url))], {
-  env: { ...process.env, GCLOUD_PROJECT: project, PORT: "5002", CHARMSG_WEB_ORIGIN: origin },
+  env: { ...process.env, GCLOUD_PROJECT: project, PORT: "5002", CHARMSG_WEB_ORIGIN: origin, CHARMSG_VAPID: JSON.stringify(generateVAPIDKeys()) },
   stdio: "inherit"
 });
 server.unref();
@@ -144,6 +145,34 @@ assert.equal(customUpgrade.chance, 0.05);
 const regularStake = await invoke(alice, "createNft", { name: "Regular valuation", image: mintImage, adminStakeCr: 25 });
 assert.equal((await nfts.doc(regularStake).get()).data().adminStakeCr, undefined);
 await reject(invoke(alice, "playUpgrade", { stakeType: "nft", stakeNftId: regularStake, targetType: "cr", targetAmount: 51 }), "FAILED_PRECONDITION");
+
+const numbered = await invoke(alice, "createNft", { name: "Numbered", image: mintImage, number: 42, effect: "rainbow", price: 1 });
+const numberedDoc = (await nfts.doc(numbered).get()).data();
+assert.equal(numberedDoc.number, 42);
+assert.equal(numberedDoc.effect, "rainbow");
+await reject(invoke(admin, "createNft", { name: "Duplicate", image: mintImage, number: 42 }), "FAILED_PRECONDITION");
+await reject(invoke(bob, "setFeaturedNft", numbered), "PERMISSION_DENIED");
+await invoke(alice, "setFeaturedNft", numbered);
+assert.equal((await profile(alice)).featuredNftId, numbered);
+await invoke(bob, "buyNft", numbered);
+await reject(invoke(alice, "setFeaturedNft", numbered), "PERMISSION_DENIED");
+await invoke(bob, "setFeaturedNft", numbered);
+assert.equal((await profile(bob)).featuredNftId, numbered);
+await invoke(bob, "setFeaturedNft", null);
+assert.equal((await profile(bob)).featuredNftId, null);
+
+const endpoint = "https://fcm.googleapis.com/fcm/send/test-device";
+const keys = { auth: "a".repeat(22), p256dh: "a".repeat(87) };
+assert.equal((await invoke(bob, "pushPublicKey")).length, 87);
+await reject(invoke(bob, "subscribeToPush", { endpoint: "https://localhost/path", keys }), "INVALID_ARGUMENT");
+await invoke(bob, "subscribeToPush", { endpoint, keys });
+const registered = await db.collection("pushSubscriptions").where("uid", "==", uid(bob)).get();
+assert.equal(registered.size, 1);
+assert.equal((await direct(bob, "pushSubscriptions/" + registered.docs[0].id)).status, 403);
+await invoke(alice, "unsubscribeFromPush", endpoint);
+assert.ok((await registered.docs[0].ref.get()).exists);
+await invoke(bob, "unsubscribeFromPush", endpoint);
+assert.ok(!(await registered.docs[0].ref.get()).exists);
 
 const reason = "Manual moderation";
 const image = "data:image/png;base64,iVBORw0KGgo=";

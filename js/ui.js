@@ -11,7 +11,7 @@ import {
   verifiedBadge
 } from "./util.js";
 import { state, userOf } from "./state.js";
-import { adminLogin, fetchUser, openDM, savePlayerLogin, signInPlayer } from "./store.js";
+import { adminLogin, effectClass, fetchUser, nftTitle, openDM, subscribeNft, savePlayerLogin, signInPlayer } from "./store.js";
 
 const root = () => document.getElementById("modalRoot");
 
@@ -65,6 +65,17 @@ export function confirmDialog(title, text, confirmLabel = "Подтвердит�
   });
 }
 
+export function profileNftHtml(nft, uid) {
+  if (!nft || nft.ownerUid !== uid) return "";
+  const image = safeUrl(nft.image || "");
+  return `<figure class="profile-nft">
+    <div class="nft-art ${effectClass(nft.effect)}">
+      ${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy" />` : '<span class="nft-noimg">◈</span>'}
+    </div>
+    <figcaption>${escapeHtml(nftTitle(nft))}</figcaption>
+  </figure>`;
+}
+
 export function userCardHtml(user, { own = false } = {}) {
   const u = user || { nick: "Аноним", bio: "", avatar: "", isAdmin: false };
   const joined = u.createdAt ? new Date(u.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "неизвестно";
@@ -88,6 +99,7 @@ export function userCardHtml(user, { own = false } = {}) {
         <span class="badge">${fmtNum(u.msgCount || 0)} сообщений</span>
         ${u.verified ? '<span class="badge" style="color:var(--p4)">верифицирован</span>' : ""}
       </div>
+      <div data-featured-nft></div>
       <div class="modal-actions">
         ${own
           ? `<button class="btn btn-primary btn-block" data-edit>Редактировать профиль</button>`
@@ -104,7 +116,12 @@ export async function openProfileModal(uid, { onDM } = {}) {
     return;
   }
   const own = uid === state.uid;
-  const modal = openModal(userCardHtml(user, { own }), { className: "user-modal" });
+  let stopNft;
+  const modal = openModal(userCardHtml(user, { own }), { className: "user-modal", onClose: () => stopNft?.() });
+  if (user.featuredNftId) {
+    const showcase = modal.body.querySelector("[data-featured-nft]");
+    stopNft = subscribeNft(user.featuredNftId, (nft) => { showcase.innerHTML = profileNftHtml(nft, uid); });
+  }
 
   modal.body.querySelector("[data-edit]")?.addEventListener("click", () => {
     modal.close();

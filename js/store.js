@@ -37,7 +37,13 @@ export const NFT_EFFECTS = [
   { key: "holo", name: "Голограмма", css: "fx-holo" },
   { key: "pulse", name: "Пульс", css: "fx-pulse" },
   { key: "fire", name: "Пламя", css: "fx-fire" },
-  { key: "void", name: "Бездна", css: "fx-void" }
+  { key: "void", name: "Бездна", css: "fx-void" },
+  { key: "rainbow", name: "Радуга", css: "fx-rainbow" },
+  { key: "aurora", name: "Северное сияние", css: "fx-aurora" },
+  { key: "ice", name: "Лёд", css: "fx-ice" },
+  { key: "gold", name: "Золото", css: "fx-gold" },
+  { key: "sparkle", name: "Искры", css: "fx-sparkle" },
+  { key: "glitch", name: "Глитч", css: "fx-glitch" }
 ];
 
 export function effectClass(key) {
@@ -510,6 +516,18 @@ export async function deletePaste(pasteId) {
 }
 
 // ---------------- nft ----------------
+export function setFeaturedNft(id) {
+  return runAction("setFeaturedNft", id);
+}
+
+export function subscribeNft(id, cb) {
+  return onSnapshot(doc(db, "nfts", id), (snap) => cb(snap.exists() ? { ...snap.data(), id: snap.id } : null), () => cb(null));
+}
+
+export function nftTitle(nft) {
+  return [nft.name || "NFT", Number.isInteger(nft.number) && nft.number > 0 ? "#" + nft.number : ""].filter(Boolean).join(" ");
+}
+
 export function subscribeNfts(cb, onError) {
   return onSnapshot(
     query(collection(db, "nfts"), orderBy("createdAt", "desc"), limit(200)),

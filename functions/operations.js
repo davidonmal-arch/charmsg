@@ -43,7 +43,13 @@ export const NFT_EFFECTS = [
   { key: "holo", name: "Голограмма", css: "fx-holo" },
   { key: "pulse", name: "Пульс", css: "fx-pulse" },
   { key: "fire", name: "Пламя", css: "fx-fire" },
-  { key: "void", name: "Бездна", css: "fx-void" }
+  { key: "void", name: "Бездна", css: "fx-void" },
+  { key: "rainbow", name: "Радуга", css: "fx-rainbow" },
+  { key: "aurora", name: "Северное сияние", css: "fx-aurora" },
+  { key: "ice", name: "Лёд", css: "fx-ice" },
+  { key: "gold", name: "Золото", css: "fx-gold" },
+  { key: "sparkle", name: "Искры", css: "fx-sparkle" },
+  { key: "glitch", name: "Глитч", css: "fx-glitch" }
 ];
 
 export function canAccessChat(chat, profile) {
@@ -700,7 +706,7 @@ export async function playUpgrade(profile, {
   });
 }
 
-export async function createNft(profile, { name, description = "", image = "", effect = "none", price = 0, adminStakeCr = 1 }) {
+export async function createNft(profile, { name, description = "", image = "", effect = "none", price = 0, adminStakeCr = 1, number = null }) {
   if (!canCreateNft(profile)) {
     throw new Error(`Создавать NFT можно с ранга «Элита» (${NFT_MIN_RANK + 1}-й уровень) или админу`);
   }
@@ -713,7 +719,11 @@ export async function createNft(profile, { name, description = "", image = "", e
   if (profile.isAdmin && (!Number.isInteger(adminStakeCr) || adminStakeCr < 1 || adminStakeCr > CASINO_MAX_BET)) {
     throw new Error("Оценка NFT должна быть целым числом от 1 до 100 000 CR");
   }
+  if (number !== null && (!Number.isInteger(number) || number < 1 || number > 999_999_999)) {
+    throw new Error("Номер NFT должен быть целым числом от 1 до 999 999 999");
+  }
   const data = {
+    ...(number === null ? {} : { number }),
     ...(profile.isAdmin ? { adminStakeCr } : {}),
     name: cleanName,
     description: String(description || "").slice(0, 500),
@@ -731,7 +741,16 @@ export async function createNft(profile, { name, description = "", image = "", e
     lastPrice: 0,
     history: []
   };
-  await setDoc(ref, data);
+  if (number === null) {
+    await setDoc(ref, data);
+  } else {
+    await db().runTransaction(async (tx) => {
+      const reservation = db().collection("nftNumbers").doc(String(number));
+      if ((await tx.get(reservation)).exists) throw new Error("Этот номер NFT уже занят");
+      tx.create(reservation, { nftId: ref.id });
+      tx.create(ref, data);
+    });
+  }
   return ref.id;
 }
 

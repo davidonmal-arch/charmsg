@@ -82,6 +82,13 @@ function renderRoute() {
     }
     route = "chats";
   }
+  if (route === "chats") {
+    const chat = new URLSearchParams(location.hash.split("?")[1]).get("chat");
+    if (chat && state.activeChatId !== chat) {
+      state.activeChatId = chat;
+      notify();
+    }
+  }
   if (state.route === route && cleanupView) {
     updateNav();
     return;

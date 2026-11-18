@@ -22,7 +22,7 @@ createServer(async (req, res) => {
   try {
     const decoded = decodeURIComponent(new URL(req.url || "/", "http://localhost").pathname);
     const path = decoded === "/" ? "/index.html" : decoded;
-    if (!/^\/(?:index\.html|manifest\.webmanifest|(?:assets|css|js)\/[a-z0-9_./-]+)$/i.test(path)
+    if (!/^\/(?:index\.html|sw\.js|manifest\.webmanifest|(?:assets|css|js)\/[a-z0-9_./-]+)$/i.test(path)
       || path.split("/").some((segment) => segment.startsWith("."))) {
       res.writeHead(404).end("Not found");
       return;

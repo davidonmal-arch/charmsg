@@ -1,6 +1,7 @@
+import { currentPushSubscription, disableMessagePush, enableMessagePush, prepareMessagePush, pushSupported } from "../push.js";
 import { state, onChange } from "../state.js";
-import { openAdminLoginModal, openPlayerLoginModal, confirmDialog } from "../ui.js";
-import { adminLogout, canCreateNft, linkedPlayerLogin, signOutPlayer, updateProfile } from "../store.js";
+import { openAdminLoginModal, openPlayerLoginModal, confirmDialog, profileNftHtml } from "../ui.js";
+import { adminLogout, canCreateNft, linkedPlayerLogin, signOutPlayer, subscribeNft, updateProfile } from "../store.js";
 import {
   MAX_RANK,
   NFT_MIN_RANK,
@@ -50,6 +51,8 @@ export function mountProfile(container) {
   let bannerValue = "";
   let initialized = false;
   let dirty = false;
+  let featuredId;
+  let stopFeatured;
 
   container.innerHTML = `
     <div class="page-head">
@@ -69,6 +72,7 @@ export function mountProfile(container) {
             <div class="profile-avatar" id="previewAvatar"></div>
             <div class="profile-name" id="previewName">Гость</div>
             <p class="profile-bio" id="previewBio">Заполните профиль ниже — и вас начнут узнавать в чатах.</p>
+            <div id="profileFeaturedNft"></div>
             <div class="profile-stats">
               <div class="mini-stat">
                 <div class="mini-stat-label">Баланс</div>
@@ -84,6 +88,12 @@ export function mountProfile(container) {
               </div>
             </div>
           </div>
+        </div>
+
+        <div class="card card-pad" id="messagePushCard" hidden>
+          <h2 class="section-title">Уведомления о личных сообщениях</h2>
+          <p class="hint" id="messagePushStatus">Включи на каждом устройстве, где хочешь получать уведомления.</p>
+          <button class="btn btn-sm" id="messagePushButton" type="button" disabled>Включить уведомления</button>
         </div>
 
         <div class="card card-pad" id="playerAccessCard" hidden>
@@ -224,6 +234,15 @@ export function mountProfile(container) {
   function refresh() {
     const p = state.profile;
     if (!p) return;
+    if (featuredId !== p.featuredNftId) {
+      featuredId = p.featuredNftId;
+      stopFeatured?.();
+      const showcase = $("profileFeaturedNft");
+      showcase.innerHTML = "";
+      stopFeatured = featuredId ? subscribeNft(featuredId, (nft) => {
+        showcase.innerHTML = profileNftHtml(nft, p.uid);
+      }) : null;
+    }
     const rank = rankOf(p);
     const banner = safeUrl(p.banner || "");
     paintAvatar(previewAvatar, p.nick, p.avatar);
@@ -273,6 +292,7 @@ export function mountProfile(container) {
 
     const adminTitle = $("adminCardTitle");
     const adminText = $("adminCardText");
+    $("messagePushCard").hidden = false;
     const accessCard = $("playerAccessCard");
     const accessButton = $("playerAccessButton");
     const login = linkedPlayerLogin();
@@ -286,7 +306,7 @@ export function mountProfile(container) {
         openPlayerLoginModal({ link: true, onLinked: refresh });
         return;
       }
-      signOutPlayer().then(() => location.reload()).catch((error) => toast(error.message, "error"));
+      disableMessagePush().catch(() => {}).then(signOutPlayer).then(() => location.reload()).catch((error) => toast(error.message, "error"));
     };
 
     const adminBtn = $("adminActionBtn");
@@ -436,8 +456,50 @@ export function mountProfile(container) {
     location.reload();
   });
 
+  const pushButton = $("messagePushButton");
+  const pushStatus = $("messagePushStatus");
+  let pushEnabled = false;
+  let pushOptionsPromise;
+  async function refreshPush() {
+    if (!pushSupported) {
+      pushStatus.textContent = "Браузер не поддерживает push. На iPhone открой CharMsg с главного экрана.";
+      return;
+    }
+    pushEnabled = !!(await currentPushSubscription());
+    if (!pushEnabled) {
+      pushOptionsPromise ||= prepareMessagePush().catch((error) => {
+        pushOptionsPromise = null;
+        throw error;
+      });
+      await pushOptionsPromise;
+    }
+    pushButton.disabled = false;
+    pushButton.textContent = pushEnabled ? "Отключить на этом устройстве" : "Включить уведомления";
+    pushStatus.textContent = pushEnabled ? "Уведомления включены в этом браузере." :
+      "Включи на каждом устройстве, где хочешь получать уведомления.";
+  }
+  pushButton.onclick = async () => {
+    pushButton.disabled = true;
+    try {
+      if (pushEnabled) await disableMessagePush();
+      else await enableMessagePush(await pushOptionsPromise);
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      await refreshPush().catch(() => { pushButton.disabled = false; });
+    }
+  };
+  const stopPushInit = onChange(() => {
+    if (!state.profile) return;
+    stopPushInit();
+    refreshPush().catch(() => { pushStatus.textContent = "Не удалось подключиться к уведомлениям."; });
+  });
+  if (state.profile) {
+    stopPushInit();
+    refreshPush().catch(() => { pushStatus.textContent = "Не удалось подключиться к уведомлениям."; });
+  }
   const unsub = onChange(refresh);
   refresh();
 
-  return () => unsub();
+  return () => { unsub(); stopPushInit(); stopFeatured?.(); };
 }

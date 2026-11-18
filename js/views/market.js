@@ -7,6 +7,8 @@ import {
   createNft,
   deleteNft,
   effectClass,
+  nftTitle,
+  setFeaturedNft,
   setNftSale,
   tickMarket,
   trade
@@ -422,7 +424,7 @@ export function mountMarket(container) {
       </div>
       <div class="nft-body">
         <div class="nft-card-top">
-          <h3>${escapeHtml(nft.name || "NFT")}</h3>
+          <h3>${escapeHtml(nftTitle(nft))}</h3>
           ${nft.forSale ? '<span class="badge solid">продаётся</span>' : '<span class="badge">в коллекции</span>'}
         </div>
         ${nft.description ? `<p class="nft-desc">${escapeHtml(nft.description)}</p>` : ""}
@@ -436,6 +438,7 @@ export function mountMarket(container) {
             ? `<input class="input nft-price-input" data-nft-price="${nft.id}" inputmode="decimal" placeholder="цена CR" value="${nft.forSale ? price : ""}" />
                <button class="btn btn-sm btn-primary" data-nft-list="${nft.id}" type="button">${nft.forSale ? "Обновить" : "Выставить"}</button>
                ${nft.forSale ? `<button class="btn btn-sm btn-ghost" data-nft-unlist="${nft.id}" type="button">Снять</button>` : ""}
+               <button class="btn btn-sm btn-ghost" data-nft-feature="${escapeHtml(nft.id)}" type="button">${state.profile?.featuredNftId === nft.id ? "Убрать из профиля" : "В профиль"}</button>
                <button class="btn btn-sm btn-danger" data-nft-delete="${nft.id}" type="button" title="Удалить NFT">×</button>`
             : nft.forSale
               ? `<button class="btn btn-sm btn-primary btn-block" data-nft-buy="${nft.id}" type="button">Купить за ${fmtNum(price, 2)} CR</button>`
@@ -514,6 +517,10 @@ export function mountMarket(container) {
              <input class="input" id="nftName" maxlength="60" placeholder="Например, Purple Genesis" />
            </div>
            <div class="field">
+             <label for="nftNumber">Номер NFT (необязательно)</label>
+             <input class="input" id="nftNumber" type="number" min="1" max="999999999" step="1" placeholder="Например, 42" />
+           </div>
+           <div class="field">
              <label for="nftDesc">Описание</label>
              <textarea class="textarea" id="nftDesc" maxlength="500" rows="2" placeholder="Что особенного в этом NFT?"></textarea>
            </div>
@@ -589,6 +596,7 @@ export function mountMarket(container) {
           image: draft.image,
           effect: draft.effect,
           price: Number(body.querySelector("#nftPrice").value) || 0,
+          number: body.querySelector("#nftNumber").value ? Number(body.querySelector("#nftNumber").value) : null,
           adminStakeCr: Number(body.querySelector("#nftStakeCr")?.value ?? 1)
         });
         modal.close();
@@ -699,6 +707,21 @@ export function mountMarket(container) {
   createNftBtn.addEventListener("click", openCreateNft);
 
   nftGrid.addEventListener("click", async (e) => {
+    const featureBtn = e.target.closest("[data-nft-feature]");
+    if (featureBtn) {
+      const key = featureBtn.dataset.nftFeature;
+      const selected = state.profile?.featuredNftId === key;
+      featureBtn.disabled = true;
+      try {
+        await setFeaturedNft(selected ? null : key);
+        toast(selected ? "NFT убран из профиля" : "NFT закреплён в профиле", "success");
+      } catch (error) {
+        toast(error.message, "error");
+      } finally {
+        featureBtn.disabled = false;
+      }
+      return;
+    }
     const buyBtn = e.target.closest("[data-nft-buy]");
     if (buyBtn) {
       await attemptNftBuy(buyBtn.dataset.nftBuy);

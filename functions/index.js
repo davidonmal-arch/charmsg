@@ -2,6 +2,7 @@ import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import * as ops from "./operations.js";
+import { notifyDirectMessage, pushPublicKey, subscribeToPush, unsubscribeFromPush } from "./push.js";
 
 const serviceAccount = process.env.CHARMSG_SERVICE_ACCOUNT;
 if (serviceAccount) {
@@ -64,6 +65,9 @@ function authenticatedProfile(auth, profile) {
 }
 
 const actions = {
+  pushPublicKey,
+  subscribeToPush: (user, input) => subscribeToPush(user.uid, input),
+  unsubscribeFromPush: (user, endpoint) => unsubscribeFromPush(user.uid, endpoint),
   createProfile: (user, input) => {
     if (user.isAdmin || user.uid === ops.ADMIN_UID) throw denied();
     return ops.createProfile(user.uid, data(input));
@@ -156,7 +160,11 @@ const actions = {
   },
   async sendMessage(user, key, text) {
     const chat = await authorizedChat(key, user);
-    return ops.sendMessage(chat, user, text);
+    const message = await ops.sendMessage(chat, user, text);
+    await notifyDirectMessage(chat, user.uid).catch((error) => {
+      console.warn("DM push lookup failed", error.code || "unknown");
+    });
+    return message;
   },
   async deleteMessage(user, key, messageId) {
     const chat = await authorizedChat(key, user);
@@ -211,6 +219,16 @@ const actions = {
     if (upgrade.stakeType === "nft") id(upgrade.stakeNftId);
     if (upgrade.targetType === "nft") id(upgrade.targetNftId);
     return ops.playUpgrade(user, upgrade);
+  },
+  async setFeaturedNft(user, key) {
+    const profile = db().collection("users").doc(user.uid);
+    if (key === null) return profile.update({ featuredNftId: null }).then(() => null);
+    const ref = db().collection("nfts").doc(id(key));
+    await db().runTransaction(async (tx) => {
+      const nft = await tx.get(ref);
+      if (nft.data()?.ownerUid !== user.uid) throw denied();
+      tx.update(profile, { featuredNftId: key });
+    });
   },
   createNft: (user, input) => ops.createNft(user, data(input)),
   setNftSale: (user, key, price) => ops.setNftSale(id(key), user, price),

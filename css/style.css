@@ -1879,3 +1879,44 @@ body.is-banned .topbar { justify-content: center; }
   .ban-photo-editor { flex-direction: column; }
   .ban-photo-preview { width: 100%; height: 130px; }
 }
+
+.profile-nft { margin: 12px 0; max-width: 180px; }
+.profile-nft .nft-art { height: 120px; border: 1px solid var(--line); border-radius: 12px; }
+.profile-nft figcaption { margin-top: 6px; font-weight: 700; overflow-wrap: anywhere; }
+
+.fx-rainbow { background: conic-gradient(#f66, #ffe871, #6ef6b1, #7da8ff, #db79ff, #f66); }
+.fx-rainbow img { animation: nftRainbow 6s linear infinite; }
+@keyframes nftRainbow { to { filter: hue-rotate(360deg) saturate(1.5); } }
+.fx-aurora::after, .fx-sparkle::after, .fx-gold::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.fx-aurora::after {
+  background: linear-gradient(120deg, #42f6bb50, transparent, #a958ff75, #66a2ff50);
+  background-size: 200% 100%;
+  animation: nftSweep 4s ease-in-out infinite alternate;
+}
+.fx-ice img { filter: saturate(.75) drop-shadow(0 0 11px #81dfff); }
+.fx-gold::after {
+  background: linear-gradient(110deg, transparent 34%, #ffd572a0 49%, transparent 64%);
+  background-size: 200% 100%;
+  animation: nftSweep 3s ease-in-out infinite alternate;
+}
+.fx-sparkle::after {
+  background: radial-gradient(circle at 17% 35%, #fff 1px, transparent 4px),
+    radial-gradient(circle at 78% 22%, #e0d1ff 2px, transparent 5px),
+    radial-gradient(circle at 61% 79%, #fff 1px, transparent 5px);
+  animation: nftVoid 1.8s ease-in-out infinite alternate;
+}
+.fx-glitch img { animation: nftGlitch 2.8s steps(1) infinite; }
+@keyframes nftSweep { from { background-position: 0 0; } to { background-position: 100% 0; } }
+@keyframes nftGlitch {
+  0%, 89%, 95% { transform: none; filter: none; }
+  90% { transform: translateX(-3px); filter: hue-rotate(35deg); }
+  93% { transform: translateX(3px); filter: hue-rotate(-35deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nft-art img, .nft-art::after { animation: none; }
+}
