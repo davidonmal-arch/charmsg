@@ -128,7 +128,7 @@ export function mountPastes(container) {
             <div class="paste-card-subject">${paste.subject ? escapeHtml(paste.subject) : '<span class="muted">человек не указан</span>'}</div>
             <div class="paste-card-meta">
               ${avatarData(author.nick, author.avatar, 20)}
-              ${nickHtml(author.nick || "Аноним", author.isAdmin, author.nickGradient)}
+              ${nickHtml(author.nick || "Аноним", author.isAdmin, author.nickGradient, author.clanTag)}
               ${rankBadge(author.rank, { compact: true })}
               <span>· ${chaptersCount(paste)} ${chaptersCount(paste) === 1 ? "глава" : "глав"}</span>
               ${pasteMinRank(paste) > 0 ? `<span class="badge rank-lock">🔒 ${escapeHtml(rankInfo(pasteMinRank(paste)).name)}</span>` : ""}
@@ -184,7 +184,7 @@ export function mountPastes(container) {
           <div class="paste-author">
             ${avatarData(author.nick, author.avatar, 30)}
             <div>
-              <div class="row" style="gap:6px">${nickHtml(author.nick || "Аноним", author.isAdmin, author.nickGradient)}${rankBadge(author.rank, { compact: true })}${verifiedBadge(author.verified, { compact: true })}</div>
+              <div class="row" style="gap:6px">${nickHtml(author.nick || "Аноним", author.isAdmin, author.nickGradient, author.clanTag)}${rankBadge(author.rank, { compact: true })}${verifiedBadge(author.verified, { compact: true })}</div>
               <div class="hint">автор · ${escapeHtml(fmtRelative(paste.createdAt))}</div>
             </div>
           </div>

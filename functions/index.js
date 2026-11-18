@@ -1,3 +1,4 @@
+import * as community from "./community.js";
 import { enhanceNft, releaseNfts } from "./releases.js";
 import { browserSignals, checkNetworkBan, rememberSignals, updatePlayerBan } from "./network-ban.js";
 import { getAuth } from "firebase-admin/auth";
@@ -68,6 +69,20 @@ function authenticatedProfile(auth, profile) {
 }
 
 const actions = {
+  setUsername: (user, value) => community.setUsername(user.uid, value),
+  findPlayer: (_, value) => community.findPlayer(value),
+  changeClan: (user, input) => community.changeClan(user.uid, data(input)),
+  claimSetupRewards: (user) => community.claimSetupRewards(user),
+  manageBusiness: (user, input) => community.manageBusiness(user.uid, data(input)),
+  startEvent: (user, input) => {
+    if (!user.isAdmin) throw denied();
+    return community.startEvent(data(input));
+  },
+  stopEvent: (user) => {
+    if (!user.isAdmin) throw denied();
+    return community.stopEvent();
+  },
+  claimEvent: (user) => community.claimEvent(user.uid),
   checkAccess: () => null,
   async adminUnbanUser(user, target) {
     if (!user.isAdmin || target === ops.ADMIN_UID) throw denied();

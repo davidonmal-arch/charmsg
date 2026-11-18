@@ -8,6 +8,7 @@ export const state = {
   pastes: [],
   nfts: [],
   market: null,
+  event: null,
   trades: [],
   casino: [],
   route: "chats",

@@ -28,6 +28,7 @@ import {
   fmtTime,
   imageFileToDataUrl,
   nickClasses,
+  nickWithClan,
   rankBadge,
   rankInfo,
   rankOf,
@@ -370,7 +371,7 @@ export function mountMarket(container) {
         if (t.isNft) {
           return `<div class="feed-row nft-feed-row">
             <span class="side-badge nft">◈</span>
-            <span class="feed-nick ${nickClasses(t.isAdmin, userOf(t.uid)?.nickGradient)}" data-uid="${escapeHtml(t.uid)}" title="${escapeHtml(t.nick || "")}">${escapeHtml(t.nick || "Аноним")}</span>
+            <span class="feed-nick ${nickClasses(t.isAdmin, userOf(t.uid)?.nickGradient)}" data-uid="${escapeHtml(t.uid)}" title="${escapeHtml(t.nick || "")}">${escapeHtml(nickWithClan(t.nick || "Аноним", userOf(t.uid)?.clanTag))}</span>
             <span class="dm-tag">nft</span>
             <span class="feed-amount">${escapeHtml(t.nftName || "NFT")}</span>
             <span class="feed-amount">−${fmtNum(t.amountCr || 0, 2)} CR</span>
@@ -380,7 +381,7 @@ export function mountMarket(container) {
         const isBot = !!t.isBot;
         return `<div class="feed-row">
           <span class="side-badge ${t.side === "buy" ? "buy" : "sell"}">${t.side === "buy" ? "↑" : "↓"}</span>
-          <span class="feed-nick ${nickClasses(t.isAdmin, userOf(t.uid)?.nickGradient)}" ${isBot ? "" : `data-uid="${escapeHtml(t.uid)}"`} title="${escapeHtml(t.nick || "")}">${escapeHtml(t.nick || "Аноним")}</span>
+          <span class="feed-nick ${nickClasses(t.isAdmin, userOf(t.uid)?.nickGradient)}" ${isBot ? "" : `data-uid="${escapeHtml(t.uid)}"`} title="${escapeHtml(t.nick || "")}">${escapeHtml(nickWithClan(t.nick || "Аноним", userOf(t.uid)?.clanTag))}</span>
           ${isBot ? '<span class="dm-tag">bot</span>' : ""}
           <span class="feed-amount">${t.side === "buy" ? "+" : "−"}${fmtNum(t.amountChr || 0, 3)} CHR</span>
           <span class="feed-time">${fmtRelative(t.ts)}</span>
@@ -404,7 +405,7 @@ export function mountMarket(container) {
         return `<div class="leader-row" data-uid="${escapeHtml(uid)}">
           <span class="leader-rank">${i + 1}</span>
           ${avatarData(u.nick, u.avatar, 26)}
-          <span class="leader-nick ${nickClasses(u.isAdmin, u.nickGradient)}">${escapeHtml(u.nick)}</span>
+          <span class="leader-nick ${nickClasses(u.isAdmin, u.nickGradient)}">${escapeHtml(nickWithClan(u.nick, u.clanTag))}</span>
           ${rankBadge(rankOf(u), { compact: true })}
           <span class="leader-value">${fmtNum(u.portfolio, 2)} CR</span>
         </div>`;

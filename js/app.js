@@ -1,3 +1,5 @@
+import { runAction } from "./db.js";
+import { setTheme } from "./views/community.js";
 import { enableMessagePush, optOutMessagePush, setupDefaultMessagePush } from "./push.js";
 import {
   banForScreenshot,
@@ -10,6 +12,7 @@ import {
   subscribeChats,
   subscribeCasino,
   subscribeMarket,
+  subscribeEvent,
   subscribeNfts,
   subscribePastes,
   subscribeProfile,
@@ -29,6 +32,8 @@ import { mountPastes } from "./views/pastes.js";
 import { mountProfile } from "./views/profile.js";
 import { mountAdmin } from "./views/admin.js";
 import { mountBan } from "./views/ban.js";
+
+setTheme(localStorage.getItem("charmsg_theme"));
 
 const viewEl = document.getElementById("view");
 const bootEl = document.getElementById("boot");
@@ -120,14 +125,14 @@ function renderRoute() {
 let headerSignature = "";
 function updateHeader() {
   const p = state.profile;
-  const signature = `${state.admin}|${p?.nick || ""}|${p?.avatar || ""}|${!!p?.isAdmin}|${p?.nickGradient || ""}|${p?.coins || 0}`;
+  const signature = `${state.admin}|${p?.nick || ""}|${p?.avatar || ""}|${!!p?.isAdmin}|${p?.nickGradient || ""}|${p?.clanTag || ""}|${p?.coins || 0}`;
   if (signature === headerSignature) {
     updateNav();
     return;
   }
   headerSignature = signature;
   meAvatar.innerHTML = avatarData(p?.nick || "Гость", p?.avatar || "", "");
-  meName.innerHTML = p ? nickHtml(p.nick || "Гость", p.isAdmin, p.nickGradient) : "Гость";
+  meName.innerHTML = p ? nickHtml(p.nick || "Гость", p.isAdmin, p.nickGradient, p.clanTag) : "Гость";
   balanceValue.textContent = fmtNum(p?.coins || 0);
   updateNav();
 }
@@ -418,6 +423,11 @@ async function boot() {
   }
 
   function subscribeData() {
+    subscriptions.push(subscribeEvent((event) => {
+      state.event = event;
+      renderCommunityEvent();
+    }, (error) => console.warn("Event subscription", error.code)));
+
     subscriptions.push(subscribeUsers(
       (users) => {
         state.users = new Map(users.map((u) => [u.uid || u.id, u]));
@@ -499,6 +509,7 @@ async function boot() {
           state.users = new Map();
           for (const name of ["chats", "pastes", "nfts", "trades", "casino"]) state[name] = [];
           state.market = null;
+          state.event = null;
         }
       }
       watchBan(profile);
@@ -511,6 +522,7 @@ async function boot() {
       }
       if (!profile && !state.admin) showOnboarding();
       updateHeader();
+      renderCommunityEvent();
       notify();
       if (profile?.banned && currentRoute() !== "ban") {
         location.hash = "#/ban";
@@ -531,6 +543,40 @@ async function boot() {
   renderRoute();
   hideBoot();
   setTimeout(hideBoot, 3500);
+}
+
+let eventTimer;
+function renderCommunityEvent() {
+  clearTimeout(eventTimer);
+  const banner = document.getElementById("communityEvent");
+  if (!banner) return;
+  const event = state.event;
+  const remaining = event ? event.endsAt - Date.now() : 0;
+  banner.hidden = !state.profile || state.profile.banned || remaining <= 0;
+  if (banner.hidden) return;
+  if (banner.dataset.signature !== `${event.id}|${state.profile.claimedEvent}`) {
+    banner.dataset.signature = `${event.id}|${state.profile.claimedEvent}`;
+    const end = new Intl.DateTimeFormat("ru-RU", {
+      timeZone: "Asia/Yekaterinburg", dateStyle: "short", timeStyle: "short"
+    }).format(event.endsAt);
+    banner.innerHTML = `<div class="grow"><strong>${escapeHtml(event.title)}</strong>
+      ${event.message ? `<p>${escapeHtml(event.message)}</p>` : ""}
+      <span class="hint">До ${end} по Екатеринбургу</span></div>
+      ${event.bonus > 0 && state.profile.claimedEvent !== event.id
+        ? `<button class="btn btn-sm btn-primary" type="button">Забрать ${fmtNum(event.bonus)} CR</button>` : ""}`;
+    const button = banner.querySelector("button");
+    if (button) button.onclick = async () => {
+      button.disabled = true;
+      try {
+        const { reward } = await runAction("claimEvent");
+        toast(`Награда ивента: +${reward} CR`, "success");
+      } catch (error) {
+        toast(error.message, "error");
+        button.disabled = false;
+      }
+    };
+  }
+  eventTimer = setTimeout(renderCommunityEvent, remaining + 50);
 }
 
 window.addEventListener("hashchange", renderRoute);

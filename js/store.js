@@ -22,7 +22,8 @@ import {
   NFT_MIN_RANK,
   NICK_GRADIENTS,
   clamp,
-  rankOf
+  rankOf,
+  toast
 } from "./util.js";
 
 export const DAY = 86_400_000;
@@ -128,6 +129,7 @@ export async function savePlayerLogin(login, password) {
   if (auth === adminAuth || !user?.isAnonymous) throw new Error("Для этого профиля пароль уже задан");
   try {
     await linkWithCredential(user, EmailAuthProvider.credential(email, password));
+    void claimSetupBonus();
   } catch (error) {
     if (error.code === "auth/email-already-in-use" || error.code === "auth/credential-already-in-use") {
       throw new Error("Логин занят. Выберите другой");
@@ -614,6 +616,17 @@ export function enhanceNft(id) {
 
 export function playChance(data) {
   return runAction("playChance", data);
+}
+
+export async function claimSetupBonus() {
+  try {
+    const { reward } = await runAction("claimSetupRewards");
+    if (reward) toast(`Бонус за настройку: +${reward} CR`, "success");
+  } catch { /* Можно забрать из профиля. */ }
+}
+
+export function subscribeEvent(cb, onError) {
+  return onSnapshot(doc(db, "community", "event"), (snap) => cb(snap.data() || null), onError);
 }
 
 export function claimDailyReward() {

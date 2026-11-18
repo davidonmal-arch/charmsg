@@ -1,3 +1,4 @@
+import { openPlayerSearch } from "./community.js";
 import {
   DAY,
   canAccessChat,
@@ -22,6 +23,7 @@ import {
   isMobile,
   nickHtml,
   nickClasses,
+  nickWithClan,
   rankBadge,
   rankOf,
   scrollToBottom,
@@ -60,6 +62,7 @@ export function mountChats(container) {
             <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
           </button>
         </div>
+        <button class="btn btn-sm btn-ghost" id="findChatPlayer" type="button">Найти игрока</button>
         <div class="search-wrap">
           <input class="input" id="chatSearch" placeholder="Поиск чатов и людей" autocomplete="off" />
         </div>
@@ -183,7 +186,7 @@ export function mountChats(container) {
         ? `<span class="chat-item-avatar">${avatarData(d.other?.nick || d.name, d.other?.avatar || "")}</span>`
         : `<span class="chat-item-avatar">${escapeHtml(d.emoji)}</span>`;
       const nameHtml = d.isDM
-        ? `${nickHtml(d.other?.nick || "Аноним", d.other?.isAdmin, d.other?.nickGradient)} ${d.other?.isAdmin ? '<span class="admin-tag" style="font-size:8px">admin</span>' : ""}`
+        ? `${nickHtml(d.other?.nick || "Аноним", d.other?.isAdmin, d.other?.nickGradient, d.other?.clanTag)} ${d.other?.isAdmin ? '<span class="admin-tag" style="font-size:8px">admin</span>' : ""}`
         : escapeHtml(d.name);
       return `
         <div class="chat-item ${active ? "active" : ""}" data-chat="${chat.id}" role="button" tabindex="0">
@@ -238,7 +241,7 @@ export function mountChats(container) {
     roomEl.hidden = false;
     const d = chatDisplay(chat);
     titleEl.innerHTML = d.isDM
-      ? `${nickHtml(d.other?.nick || "Аноним", d.other?.isAdmin, d.other?.nickGradient)} ${rankBadge(rankOf(d.other), { compact: true })} ${verifiedBadge(d.other?.verified, { compact: true })} ${d.other?.isAdmin ? '<span class="admin-tag">admin</span>' : ""}`
+      ? `${nickHtml(d.other?.nick || "Аноним", d.other?.isAdmin, d.other?.nickGradient, d.other?.clanTag)} ${rankBadge(rankOf(d.other), { compact: true })} ${verifiedBadge(d.other?.verified, { compact: true })} ${d.other?.isAdmin ? '<span class="admin-tag">admin</span>' : ""}`
       : `${escapeHtml(d.emoji)} ${escapeHtml(d.name)} ${chat.verifiedOnly ? '<span class="lock-tag">🔒</span>' : ""}`;
     avatarEl.innerHTML = d.isDM
       ? avatarData(d.other?.nick || d.name, d.other?.avatar || "")
@@ -296,7 +299,7 @@ export function mountChats(container) {
           ${own ? "" : `<div class="msg-avatar" data-uid="${escapeHtml(msg.uid)}" role="button" tabindex="0">${avatarData(nick, avatar)}</div>`}
           <div class="msg-body">
             <div class="msg-meta">
-              <span class="nick ${nickClasses(isAdmin, author?.nickGradient)}" data-uid="${escapeHtml(msg.uid)}" role="button" tabindex="0">${escapeHtml(nick)}</span>
+              <span class="nick ${nickClasses(isAdmin, author?.nickGradient)}" data-uid="${escapeHtml(msg.uid)}" data-nick="${escapeHtml(nick)}" role="button" tabindex="0">${escapeHtml(nickWithClan(nick, author?.clanTag))}</span>
               ${rankBadge(rankOf(author), { compact: true })}
               ${verifiedBadge(author?.verified, { compact: true })}
               ${isAdmin ? '<span class="admin-tag">admin</span>' : ""}
@@ -408,6 +411,7 @@ export function mountChats(container) {
           local.users = state.users;
           for (const name of messagesEl.querySelectorAll(".msg-meta .nick[data-uid]")) {
             const author = userOf(name.dataset.uid);
+            name.textContent = nickWithClan(name.dataset.nick, author?.clanTag);
             name.className = `nick ${nickClasses(author?.isAdmin || name.classList.contains("nick-admin"), author?.nickGradient)}`.trim();
           }
         }
@@ -458,6 +462,7 @@ export function mountChats(container) {
     }
   });
   sendBtn.addEventListener("click", send);
+  container.querySelector("#findChatPlayer").addEventListener("click", openPlayerSearch);
   searchEl.addEventListener("input", () => {
     local.search = searchEl.value;
     renderList();

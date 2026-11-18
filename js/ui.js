@@ -85,12 +85,13 @@ export function userCardHtml(user, { own = false } = {}) {
     <div class="user-modal-body">
       <div class="user-modal-avatar">${avatarData(u.nick, u.avatar, 84)}</div>
       <div class="user-modal-name">
-        ${nickHtml(u.nick || "Аноним", u.isAdmin, u.nickGradient)}
+        ${nickHtml(u.nick || "Аноним", u.isAdmin, u.nickGradient, u.clanTag)}
         ${rankBadge(rankOf(u))}
         ${verifiedBadge(u.verified)}
         ${u.isAdmin ? '<span class="admin-tag">admin</span>' : ""}
         ${u.banned ? '<span class="badge">заблокирован</span>' : ""}
       </div>
+      ${u.username ? `<div class="user-modal-meta">@${escapeHtml(u.username)}</div>` : ""}
       <div class="user-modal-meta">В CharMsg с ${escapeHtml(joined)}${own ? " · это вы" : ""}</div>
       <p class="user-modal-bio">${u.bio ? escapeHtml(u.bio) : '<span class="muted">Без описания — загадочная личность.</span>'}</p>
       <div class="user-modal-stats">

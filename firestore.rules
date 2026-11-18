@@ -35,6 +35,10 @@ service cloud.firestore {
       }
     }
 
+    match /community/event {
+      allow read: if active();
+    }
+
     match /market/{docId} {
       allow read: if active();
       allow write: if admin();

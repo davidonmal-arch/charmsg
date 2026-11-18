@@ -1951,3 +1951,42 @@ body.is-banned .topbar { justify-content: center; }
 .nick-gradient-gold { --nick-gradient: linear-gradient(90deg, #fff1ab, #f8bc54, #fff3cc); }
 .nick-gradient-candy { --nick-gradient: linear-gradient(90deg, #ffc2e5, #e5a3ff, #93dcff); }
 .nick-gradient-rainbow { --nick-gradient: linear-gradient(90deg, #ff9aab, #ffdf8d, #a3ffc4, #a6bbff, #f0a6ff); }
+
+:root[data-theme="ocean"] {
+  --p1:#163b69; --p2:#245d94; --p3:#72aee8; --p4:#83d1ff; --p5:#daefff;
+  --bg:#050d18; --panel:#0a1c30; --panel-solid:#0a1c30; --panel-2:#102941; --panel-3:#183851;
+  --line:#83d1ff36; --line-strong:#83d1ff66;
+  --grad:linear-gradient(135deg,#163b69,#245d94,#83d1ff); --grad-soft:linear-gradient(135deg,#163b69,#102941);
+}
+:root[data-theme="emerald"] {
+  --p1:#144535; --p2:#267253; --p3:#71cb9d; --p4:#9ae2ae; --p5:#ddffdf;
+  --bg:#06120d; --panel:#0b2117; --panel-solid:#0b2117; --panel-2:#103121; --panel-3:#194532;
+  --line:#9ae2ae36; --line-strong:#9ae2ae66;
+  --grad:linear-gradient(135deg,#144535,#267253,#9ae2ae); --grad-soft:linear-gradient(135deg,#144535,#103121);
+}
+:root[data-theme="amber"] {
+  --p1:#593519; --p2:#925724; --p3:#e9a767; --p4:#ffd292; --p5:#fff0ce;
+  --bg:#140c05; --panel:#26170a; --panel-solid:#26170a; --panel-2:#3a2411; --panel-3:#482d16;
+  --line:#ffd29236; --line-strong:#ffd29266;
+  --grad:linear-gradient(135deg,#593519,#925724,#ffd292); --grad-soft:linear-gradient(135deg,#593519,#3a2411);
+}
+#communityEvent { margin: 12px auto; width: min(calc(100% - 24px), 1200px); padding: 12px 16px; align-items: center; gap: 8px; }
+#communityEvent p { margin: 4px 0; overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  .admin-tabs { flex-wrap: wrap; overflow: visible; }
+  .admin-tabs .admin-tab { flex: 1 1 auto; white-space: normal; }
+  .admin-panel { min-width: 0; }
+  .admin-panel .table-wrap { overflow: visible; }
+  table.admin-table { min-width: 0; display: block; }
+  .admin-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .admin-table tbody { display: grid; gap: 10px; }
+  .admin-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
+  .admin-table td { display: block; padding: 5px 0; min-width: 0; border: 0; overflow-wrap: anywhere; }
+  .admin-table td:first-child, .admin-table td:last-child { grid-column: 1 / -1; }
+  .admin-table td:nth-child(4)::before { content: "CR "; color: var(--muted); }
+  .admin-table td:nth-child(5)::before { content: "CHR "; color: var(--muted); }
+  .admin-table td:nth-child(6)::before { content: "Сообщений "; color: var(--muted); }
+  .admin-table .table-actions { flex-wrap: wrap; justify-content: flex-start; }
+  .admin-table .user-cell { min-width: 0; }
+}

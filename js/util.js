@@ -284,9 +284,13 @@ export function nickClasses(isAdmin, gradient) {
   return (isAdmin ? "nick-admin" : "") + custom;
 }
 
-export function nickHtml(nick = "", isAdmin = false, gradient) {
+export function nickWithClan(nick, tag) {
+  return /^[A-Z0-9]{2,6}$/.test(tag || "") ? `[${tag}] ${nick}` : nick;
+}
+
+export function nickHtml(nick = "", isAdmin = false, gradient, clanTag) {
   const cls = `nick ${nickClasses(isAdmin, gradient)}`.trim();
-  return `<span class="${cls}">${escapeHtml(nick || "Аноним")}</span>`;
+  return `<span class="${cls}">${escapeHtml(nickWithClan(nick || "Аноним", clanTag))}</span>`;
 }
 
 // ---------- toasts ----------

@@ -14,7 +14,7 @@ import {
   rouletteColor,
   spinRoulette
 } from "../store.js";
-import { clamp, escapeHtml, fmtNum, fmtRelative, nickClasses, safeUrl, toast } from "../util.js";
+import { clamp, escapeHtml, fmtNum, fmtRelative, nickClasses, nickWithClan, safeUrl, toast } from "../util.js";
 
 const SEGMENTS = 37;
 const SEG_ANGLE = 360 / SEGMENTS;
@@ -449,7 +449,7 @@ export function mountCasino(container) {
             : (play.color === "red" ? "красное" : play.color === "black" ? "чёрное" : "зеро") + " · " + play.result;
           return `<div class="casino-feed-row">
             <span class="casino-feed-game">${play.game === "coin" ? "◉" : play.game === "dice" ? "⚄" : "🎡"}</span>
-            <span class="casino-feed-nick ${nickClasses(play.isAdmin, userOf(play.uid)?.nickGradient)}" data-uid="${escapeHtml(play.uid || "")}">${escapeHtml(play.nick || "Аноним")}</span>
+            <span class="casino-feed-nick ${nickClasses(play.isAdmin, userOf(play.uid)?.nickGradient)}" data-uid="${escapeHtml(play.uid || "")}">${escapeHtml(nickWithClan(play.nick || "Аноним", userOf(play.uid)?.clanTag))}</span>
             <span class="casino-feed-info">${escapeHtml(label)}</span>
             <span class="casino-feed-amount ${win ? "win" : "lose"}">${win ? "+" : "−"}${fmtNum(win ? play.payout : play.amount, 0)} CR</span>
             <span class="casino-feed-time">${fmtRelative(play.createdAt)}</span>
@@ -459,7 +459,7 @@ export function mountCasino(container) {
         const target = play.targetType === "cr" ? `${fmtNum(play.targetValue, 0)} CR` : play.targetNftName || "NFT";
         return `<div class="casino-feed-row">
           <span class="casino-feed-game">⬆</span>
-          <span class="casino-feed-nick ${nickClasses(play.isAdmin, userOf(play.uid)?.nickGradient)}" data-uid="${escapeHtml(play.uid || "")}">${escapeHtml(play.nick || "Аноним")}</span>
+          <span class="casino-feed-nick ${nickClasses(play.isAdmin, userOf(play.uid)?.nickGradient)}" data-uid="${escapeHtml(play.uid || "")}">${escapeHtml(nickWithClan(play.nick || "Аноним", userOf(play.uid)?.clanTag))}</span>
           <span class="casino-feed-info">${escapeHtml(stake)} → ${escapeHtml(target)}</span>
           <span class="casino-feed-amount ${win ? "win" : "lose"}">${win ? "успех" : "провал"}</span>
           <span class="casino-feed-time">${fmtRelative(play.createdAt)}</span>

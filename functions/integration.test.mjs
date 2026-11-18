@@ -278,6 +278,50 @@ for (const duration of [600_000, 3_600_000, 86_400_000, 259_200_000, 500 * 365.2
 }
 assert.equal((await invoke(admin, "listMessages", targetChat)).length, 15);
 
+assert.equal((await invoke(spammer, "claimSetupRewards")).reward, 20);
+assert.equal((await invoke(spammer, "claimSetupRewards")).reward, 0);
+assert.equal((await invoke(alice, "claimSetupRewards")).reward, 0);
+
+await invoke(alice, "setUsername", "@alpha_team");
+await reject(invoke(bob, "setUsername", "ALPHA_TEAM"), "FAILED_PRECONDITION");
+assert.equal((await invoke(bob, "findPlayer", "@ALPHA_TEAM"))[0].uid, uid(alice));
+assert.equal((await invoke(bob, "findPlayer", "Ali"))[0].uid, uid(alice));
+await invoke(alice, "setUsername", "alpha_next");
+assert.deepEqual(await invoke(bob, "findPlayer", "@alpha_team"), []);
+await invoke(alice, "changeClan", { action: "create", tag: "WOLF", name: "Wolf team" });
+await invoke(bob, "changeClan", { action: "join", tag: "wolf" });
+assert.equal((await profile(alice)).clanTag, "WOLF");
+assert.equal((await profile(bob)).clanTag, "WOLF");
+await invoke(bob, "changeClan", { action: "leave" });
+assert.equal((await profile(bob)).clanTag, "");
+
+const balanceBeforeShop = (await profile(alice)).coins;
+await invoke(alice, "manageBusiness", { action: "buy", type: "shop" });
+assert.equal((await profile(alice)).coins, balanceBeforeShop - 25);
+await reject(invoke(alice, "manageBusiness", { action: "buy", type: "shop" }), "FAILED_PRECONDITION");
+const businesses = users.doc(uid(alice)).collection("private").doc("business");
+const businessNow = Date.now();
+await businesses.set({ shop: { paidThrough: businessNow - 7_200_000, breakAt: businessNow - 3_600_000 } });
+const brokenShop = (await invoke(alice, "manageBusiness", { action: "status" })).shop;
+assert.equal(brokenShop.broken, true);
+assert.equal(brokenShop.accrued, 5);
+assert.equal((await direct(alice, "users/" + uid(alice) + "/private/business")).status, 403);
+await invoke(alice, "manageBusiness", { action: "collect", type: "shop" });
+await invoke(alice, "manageBusiness", { action: "repair", type: "shop" });
+assert.equal((await profile(alice)).coins, balanceBeforeShop - 25 + 5 - 3);
+assert.equal((await invoke(alice, "manageBusiness", { action: "status" })).shop.broken, false);
+
+const newEvent = { title: "Community event", message: "Hello", hours: 2, bonus: 7 };
+await reject(invoke(alice, "startEvent", newEvent), "PERMISSION_DENIED");
+await invoke(admin, "startEvent", newEvent);
+assert.equal((await direct(alice, "community/event")).status, 200);
+assert.equal((await direct(null, "community/event")).status, 403);
+assert.equal((await invoke(alice, "claimEvent")).reward, 7);
+await reject(invoke(alice, "claimEvent"), "FAILED_PRECONDITION");
+await reject(invoke(alice, "stopEvent"), "PERMISSION_DENIED");
+await invoke(admin, "stopEvent");
+await reject(invoke(bob, "claimEvent"), "FAILED_PRECONDITION");
+
 const endpoint = "https://fcm.googleapis.com/fcm/send/test-device";
 const keys = { auth: "a".repeat(22), p256dh: "a".repeat(87) };
 assert.equal((await invoke(bob, "pushPublicKey")).length, 87);
@@ -285,6 +329,8 @@ await reject(invoke(bob, "subscribeToPush", { endpoint: "https://localhost/path"
 await invoke(bob, "subscribeToPush", { endpoint, keys });
 const registered = await db.collection("pushSubscriptions").where("uid", "==", uid(bob)).get();
 assert.equal(registered.size, 1);
+assert.equal((await invoke(bob, "claimSetupRewards")).reward, 20);
+assert.equal((await invoke(bob, "claimSetupRewards")).reward, 0);
 assert.equal((await direct(bob, "pushSubscriptions/" + registered.docs[0].id)).status, 403);
 await invoke(alice, "unsubscribeFromPush", endpoint);
 assert.ok((await registered.docs[0].ref.get()).exists);

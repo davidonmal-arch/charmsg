@@ -1,3 +1,4 @@
+import { communityProfileHtml, wireCommunityProfile } from "./community.js";
 import { currentPushSubscription, disableMessagePush, enableMessagePush, prepareMessagePush, pushSupported } from "../push.js";
 import { state, onChange } from "../state.js";
 import { openAdminLoginModal, openPlayerLoginModal, confirmDialog, profileNftHtml } from "../ui.js";
@@ -90,6 +91,7 @@ export function mountProfile(container) {
           </div>
         </div>
 
+        ${communityProfileHtml}
         <div class="card card-pad" id="messagePushCard" hidden>
           <h2 class="section-title">Уведомления о личных сообщениях</h2>
           <p class="hint" id="messagePushStatus">Включи на каждом устройстве, где хочешь получать уведомления.</p>
@@ -231,7 +233,10 @@ export function mountProfile(container) {
     bannerUrl.value = /^https?:\/\//i.test(url || "") ? url : "";
   }
 
+  const refreshCommunity = wireCommunityProfile(container);
+
   function refresh() {
+    refreshCommunity();
     const p = state.profile;
     if (!p) return;
     if (featuredId !== p.featuredNftId) {
@@ -246,7 +251,7 @@ export function mountProfile(container) {
     const rank = rankOf(p);
     const banner = safeUrl(p.banner || "");
     paintAvatar(previewAvatar, p.nick, p.avatar);
-    previewName.innerHTML = `${nickHtml(p.nick || "Гость", p.isAdmin, p.nickGradient)} ${rankBadge(rank)} ${verifiedBadge(p.verified)} ${p.isAdmin ? '<span class="admin-tag">admin</span>' : ""}`;
+    previewName.innerHTML = `${nickHtml(p.nick || "Гость", p.isAdmin, p.nickGradient, p.clanTag)} ${rankBadge(rank)} ${verifiedBadge(p.verified)} ${p.isAdmin ? '<span class="admin-tag">admin</span>' : ""}`;
     previewBio.textContent = p.bio || "Без описания — загадочная личность.";
     previewCoins.innerHTML = `${fmtNum(p.coins || 0)} <small>CR</small>`;
     previewChr.innerHTML = `${fmtNum(p.chr || 0, 2)} <small>CHR</small>`;

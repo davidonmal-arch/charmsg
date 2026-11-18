@@ -1,3 +1,4 @@
+import { runAction } from "../db.js";
 import { state, onChange } from "../state.js";
 import { confirmDialog, openModal } from "../ui.js";
 import {
@@ -120,6 +121,7 @@ export function mountAdmin(container) {
       <button class="admin-tab" data-tab="content">Контент и чаты</button>
       <button class="admin-tab" data-tab="market">Рынок</button>
       <button class="admin-tab" data-tab="broadcast">Рассылка</button>
+      <button class="admin-tab" data-tab="events">Ивенты</button>
     </div>
 
     <div class="admin-panel card" data-panel="users">
@@ -182,6 +184,21 @@ export function mountAdmin(container) {
       <p class="impact-note" style="margin-top:14px">Совет: большая ликвидность делает влияние отдельных сделок мягче. Малая ликвидность — рынок становится волатильным.</p>
     </div>
 
+    <div class="admin-panel card hidden" data-panel="events">
+      <h3>Ивенты</h3>
+      <p class="sub">Новый ивент заменит текущий. Объявление появится у всех вошедших игроков.</p>
+      <form class="stack" id="adminEventForm">
+        <label class="field">Название<input class="input" name="title" maxlength="60" minlength="2" required></label>
+        <label class="field">Объявление<textarea class="textarea" name="message" maxlength="400"></textarea></label>
+        <label class="field">Длительность в часах<input class="input" name="hours" type="number" min="1" max="168" value="24" required></label>
+        <label class="field">Награда каждому игроку, CR<input class="input" name="bonus" type="number" min="0" max="1000" value="0" required></label>
+        <div class="row wrap">
+          <button class="btn btn-primary btn-sm" type="submit">Запустить ивент</button>
+          <button class="btn btn-sm" id="stopEventBtn" type="button">Завершить ивент</button>
+        </div>
+      </form>
+    </div>
+
     <div class="admin-panel card hidden" data-panel="broadcast">
       <h3>Рассылка от администратора</h3>
       <p class="sub">Сообщение отправится во все публичные чаты от ника farnaz с переливающимся фиолетовым.</p>
@@ -239,7 +256,7 @@ export function mountAdmin(container) {
         const uid = u.uid || u.id;
         const rank = rankOf(u);
         return `<tr>
-          <td><div class="user-cell">${avatarData(u.nick, u.avatar, 28)}<div><div>${nickHtml(u.nick || "Аноним", u.isAdmin, u.nickGradient)}</div><div class="hint" style="font-size:9px">${escapeHtml(uid)}</div></div></div></td>
+          <td><div class="user-cell">${avatarData(u.nick, u.avatar, 28)}<div><div>${nickHtml(u.nick || "Аноним", u.isAdmin, u.nickGradient, u.clanTag)}</div><div class="hint" style="font-size:9px">${escapeHtml(uid)}</div></div></div></td>
           <td>
             <div class="row" style="gap:6px;flex-wrap:nowrap">${rankBadge(rank, { compact: true })}
               <select class="select select-sm rank-select" data-rank="${escapeHtml(uid)}" title="Выдать ранг">
@@ -658,6 +675,26 @@ export function mountAdmin(container) {
   $("broadcastText").addEventListener("input", (e) => {
     $("broadcastCount").textContent = `${e.target.value.length} / 1500`;
   });
+
+  $("adminEventForm").onsubmit = async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector('[type="submit"]');
+    button.disabled = true;
+    try {
+      const { title, message, hours, bonus } = form.elements;
+      await runAction("startEvent", { title: title.value, message: message.value, hours: Number(hours.value), bonus: Number(bonus.value) });
+      toast("Ивент запущен", "success");
+    } catch (error) { toast(error.message, "error"); }
+    finally { button.disabled = false; }
+  };
+  $("stopEventBtn").onclick = async () => {
+    if (!await confirmDialog("Завершить ивент?", "Игроки больше не смогут забрать его награду.", "Завершить")) return;
+    try {
+      await runAction("stopEvent");
+      toast("Ивент завершён", "success");
+    } catch (error) { toast(error.message, "error"); }
+  };
 
   $("broadcastBtn").addEventListener("click", async () => {
     const text = $("broadcastText").value.trim();

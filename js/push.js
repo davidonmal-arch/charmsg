@@ -1,3 +1,4 @@
+import { claimSetupBonus } from "./store.js";
 import { auth, runAction } from "./db.js";
 
 export const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -43,6 +44,7 @@ export async function enableMessagePush({ registration, publicKey }) {
   const options = { userVisibleOnly: true, applicationServerKey: publicKey };
   const subscription = await registration.pushManager.subscribe(options);
   await runAction("subscribeToPush", subscription.toJSON());
+  void claimSetupBonus();
   localStorage.setItem(ownerKey, auth.currentUser.uid);
   localStorage.removeItem(optOutKey(auth.currentUser.uid));
   window.dispatchEvent(new Event("charmsg:push-changed"));
