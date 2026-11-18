@@ -242,6 +242,18 @@ await users.doc(uid(alice)).update({ lastDailyReward: "2020-01-01" });
 assert.equal((await invoke(alice, "claimDailyReward")).reward, 10);
 assert.equal((await profile(alice)).coins, beforeDailyReward + 20);
 
+const quotaChat = await invoke(alice, "createPublicChat", { name: "Low-read test" });
+const firstQuotaMessage = await invoke(alice, "sendMessage", quotaChat, "First");
+assert.equal((await invoke(bob, "listMessages", quotaChat)).length, 1);
+assert.deepEqual(await invoke(bob, "listMessages", quotaChat, firstQuotaMessage.createdAt, firstQuotaMessage.createdAt), []);
+const secondQuotaMessage = await invoke(alice, "sendMessage", quotaChat, "Second");
+assert.ok(secondQuotaMessage.createdAt > firstQuotaMessage.createdAt);
+assert.equal((await invoke(bob, "listMessages", quotaChat, firstQuotaMessage.createdAt, firstQuotaMessage.createdAt)).at(-1).id, secondQuotaMessage.id);
+const gradientField = { nickGradient: { stringValue: "aurora" } };
+assert.equal((await direct(alice, "users/" + uid(alice), "PATCH", gradientField)).status, 403);
+assert.equal((await direct(admin, "users/" + uid(alice) + "?updateMask.fieldPaths=nickGradient", "PATCH", gradientField)).status, 200);
+assert.equal((await profile(alice)).nickGradient, "aurora");
+
 const passwordData = { login: "player_" + suffix, password: "new-test-password-001" };
 await reject(invoke(bob, "adminSetPlayerPassword", uid(alice), passwordData), "PERMISSION_DENIED");
 await reject(invoke(admin, "adminSetPlayerPassword", uid(admin), passwordData), "PERMISSION_DENIED");

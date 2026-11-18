@@ -19,6 +19,7 @@ import {
   adminSetLiquidity,
   adminSetPrice,
   adminSetRank,
+  adminSetNickGradient,
   adminSetVerified,
   adminStats,
   deleteChat
@@ -31,6 +32,7 @@ import {
   fmtRelative,
   imageFileToDataUrl,
   nickHtml,
+  NICK_GRADIENTS,
   plural,
   rankBadge,
   rankOf,
@@ -237,7 +239,7 @@ export function mountAdmin(container) {
         const uid = u.uid || u.id;
         const rank = rankOf(u);
         return `<tr>
-          <td><div class="user-cell">${avatarData(u.nick, u.avatar, 28)}<div><div class="${u.isAdmin ? "nick-admin" : "nick"}">${escapeHtml(u.nick || "Аноним")}</div><div class="hint" style="font-size:9px">${escapeHtml(uid)}</div></div></div></td>
+          <td><div class="user-cell">${avatarData(u.nick, u.avatar, 28)}<div><div>${nickHtml(u.nick || "Аноним", u.isAdmin, u.nickGradient)}</div><div class="hint" style="font-size:9px">${escapeHtml(uid)}</div></div></div></td>
           <td>
             <div class="row" style="gap:6px;flex-wrap:nowrap">${rankBadge(rank, { compact: true })}
               <select class="select select-sm rank-select" data-rank="${escapeHtml(uid)}" title="Выдать ранг">
@@ -251,6 +253,10 @@ export function mountAdmin(container) {
           <td class="mono">${fmtNum(u.msgCount || 0)}</td>
           <td>${u.banned ? `<span class="badge" style="color:#e0a6bf" title="${escapeHtml(u.banReason || "")}">${u.banType === "clicker" ? "бан: автокликер" : u.banType === "radical" ? "усиленный бан" : u.banType === "spam" ? "бан: спам" : u.banType === "screenshot" ? "бан: скриншот" : "ручной бан"}${Number(u.banUntil) > 0 ? " · временно" : " · бессрочно"}</span>` : '<span class="badge">активен</span>'}</td>
           <td><div class="table-actions">
+            <select class="select select-sm" data-gradient="${escapeHtml(uid)}" aria-label="Градиент ника">
+              ${Object.entries(NICK_GRADIENTS).map(([value, label]) =>
+                `<option value="${value}" ${value === (u.nickGradient || "") ? "selected" : ""}>${label}</option>`).join("")}
+            </select>
             <button class="btn btn-sm" data-action="ban" data-uid="${escapeHtml(uid)}" data-banned="${u.banned ? "1" : "0"}">${u.banned ? "Разбан" : "Бан"}</button>
             ${uid !== state.uid ? `<button class="btn btn-sm btn-ghost" data-action="password" data-uid="${escapeHtml(uid)}">Пароль</button>` : ""}
             <button class="btn btn-sm" data-action="coins" data-uid="${escapeHtml(uid)}">+100 CR</button>
@@ -537,6 +543,20 @@ export function mountAdmin(container) {
   });
 
   $("usersBody").addEventListener("change", async (e) => {
+    const gradient = e.target.closest("[data-gradient]");
+    if (gradient) {
+      gradient.disabled = true;
+      try {
+        await adminSetNickGradient(gradient.dataset.gradient, gradient.value);
+        toast("Градиент ника обновлён", "success");
+        await loadUsers();
+      } catch (error) {
+        toast(error.message, "error");
+      } finally {
+        gradient.disabled = false;
+      }
+      return;
+    }
     const select = e.target.closest("[data-rank]");
     if (!select) return;
     const uid = select.dataset.rank;

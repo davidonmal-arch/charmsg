@@ -244,7 +244,7 @@ export async function sendMessage(chat, profile, text) {
   const userRef = db().collection("users").doc(profile.uid);
   const spamRef = userRef.collection("private").doc("spam");
   const fingerprint = createHash("sha256").update(value.toLowerCase().replace(/\s+/g, " ")).digest("hex");
-  const blocked = await db().runTransaction(async (tx) => {
+  const result = await db().runTransaction(async (tx) => {
     const chatSnap = await tx.get(chatRef);
     const userSnap = await tx.get(userRef);
     const latest = chatSnap.data();
@@ -266,19 +266,22 @@ export async function sendMessage(chat, profile, text) {
           banAt: now, banUntil: now + SPAM_TERMS[step], banYears: step === 4 ? 500 : 0,
           banImage: "./assets/ban-spam.jpg"
         });
-        return true;
+        return null;
       }
       tx.set(spamRef, { recent }, { merge: true });
     }
+    const createdAt = Math.max(now, (Number(latest.lastMessageAt) || 0) + 1);
+    const expiresAt = createdAt + ttl;
     tx.create(msgRef, {
       uid: profile.uid, nick: user.nick, isAdmin: profile.isAdmin,
-      text: value, createdAt: now, expiresAt: now + ttl
+      text: value, createdAt, expiresAt
     });
-    tx.update(chatRef, { lastMessage: value.slice(0, 140), lastMessageAt: now, lastSender: profile.uid });
+    tx.update(chatRef, { lastMessage: value.slice(0, 140), lastMessageAt: createdAt, lastSender: profile.uid });
     tx.update(userRef, { msgCount: (Number(user.msgCount) || 0) + 1, lastSeen: now });
+    return { id: msgRef.id, createdAt, expiresAt };
   });
-  if (blocked) throw new Error("Аккаунт временно заблокирован за спам");
-  return { id: msgRef.id, createdAt: now, expiresAt: now + ttl };
+  if (!result) throw new Error("Аккаунт временно заблокирован за спам");
+  return result;
 }
 
 export async function purgeExpiredMessages(chatId, max = 40) {

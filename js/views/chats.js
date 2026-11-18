@@ -21,6 +21,7 @@ import {
   fmtTime,
   isMobile,
   nickHtml,
+  nickClasses,
   rankBadge,
   rankOf,
   scrollToBottom,
@@ -182,7 +183,7 @@ export function mountChats(container) {
         ? `<span class="chat-item-avatar">${avatarData(d.other?.nick || d.name, d.other?.avatar || "")}</span>`
         : `<span class="chat-item-avatar">${escapeHtml(d.emoji)}</span>`;
       const nameHtml = d.isDM
-        ? `${nickHtml(d.other?.nick || "Аноним", d.other?.isAdmin)} ${d.other?.isAdmin ? '<span class="admin-tag" style="font-size:8px">admin</span>' : ""}`
+        ? `${nickHtml(d.other?.nick || "Аноним", d.other?.isAdmin, d.other?.nickGradient)} ${d.other?.isAdmin ? '<span class="admin-tag" style="font-size:8px">admin</span>' : ""}`
         : escapeHtml(d.name);
       return `
         <div class="chat-item ${active ? "active" : ""}" data-chat="${chat.id}" role="button" tabindex="0">
@@ -237,7 +238,7 @@ export function mountChats(container) {
     roomEl.hidden = false;
     const d = chatDisplay(chat);
     titleEl.innerHTML = d.isDM
-      ? `${nickHtml(d.other?.nick || "Аноним", d.other?.isAdmin)} ${rankBadge(rankOf(d.other), { compact: true })} ${verifiedBadge(d.other?.verified, { compact: true })} ${d.other?.isAdmin ? '<span class="admin-tag">admin</span>' : ""}`
+      ? `${nickHtml(d.other?.nick || "Аноним", d.other?.isAdmin, d.other?.nickGradient)} ${rankBadge(rankOf(d.other), { compact: true })} ${verifiedBadge(d.other?.verified, { compact: true })} ${d.other?.isAdmin ? '<span class="admin-tag">admin</span>' : ""}`
       : `${escapeHtml(d.emoji)} ${escapeHtml(d.name)} ${chat.verifiedOnly ? '<span class="lock-tag">🔒</span>' : ""}`;
     avatarEl.innerHTML = d.isDM
       ? avatarData(d.other?.nick || d.name, d.other?.avatar || "")
@@ -295,7 +296,7 @@ export function mountChats(container) {
           ${own ? "" : `<div class="msg-avatar" data-uid="${escapeHtml(msg.uid)}" role="button" tabindex="0">${avatarData(nick, avatar)}</div>`}
           <div class="msg-body">
             <div class="msg-meta">
-              <span class="nick ${isAdmin ? "nick-admin" : ""}" data-uid="${escapeHtml(msg.uid)}" role="button" tabindex="0">${escapeHtml(nick)}</span>
+              <span class="nick ${nickClasses(isAdmin, author?.nickGradient)}" data-uid="${escapeHtml(msg.uid)}" role="button" tabindex="0">${escapeHtml(nick)}</span>
               ${rankBadge(rankOf(author), { compact: true })}
               ${verifiedBadge(author?.verified, { compact: true })}
               ${isAdmin ? '<span class="admin-tag">admin</span>' : ""}
@@ -343,7 +344,7 @@ export function mountChats(container) {
     renderHeader();
     messagesEl.innerHTML = `<div class="empty" style="min-height:200px"><div class="boot-spinner"></div><p>Загружаем сообщения…</p></div>`;
     renderList();
-    markSeen(state.uid, chatId);
+    let seenAt = Number(state.profile?.seen?.[chatId]) || 0;
 
     local.unsubMessages = subscribeMessages(
       chatId,
@@ -354,9 +355,13 @@ export function mountChats(container) {
         local.renderedCount = messages.length;
         renderMessages({ scroll: grew ? nearBottom || messages.some((m) => m.uid === state.uid && Date.now() - m.createdAt < 4000) : true });
         renderHeader();
-        markSeen(state.uid, chatId);
+        const newest = messages.at(-1)?.createdAt || 0;
+        if (newest > seenAt) {
+          seenAt = newest;
+          markSeen(state.uid, chatId, newest);
+        }
         const now = Date.now();
-        if (now - local.lastPurge > 90_000) {
+        if (now - local.lastPurge > 300_000) {
           local.lastPurge = now;
           purgeExpiredMessages(chatId).catch(() => {});
         }
@@ -399,6 +404,13 @@ export function mountChats(container) {
         closeRoom();
       } else {
         renderHeader();
+        if (local.users !== state.users) {
+          local.users = state.users;
+          for (const name of messagesEl.querySelectorAll(".msg-meta .nick[data-uid]")) {
+            const author = userOf(name.dataset.uid);
+            name.className = `nick ${nickClasses(author?.isAdmin || name.classList.contains("nick-admin"), author?.nickGradient)}`.trim();
+          }
+        }
       }
     }
     if (!autoOpened && !isMobile() && !state.activeChatId && state.chats.length) {
@@ -620,14 +632,14 @@ export function mountChats(container) {
 
   const unsubState = onChange(renderAll);
   const timer = setInterval(() => {
-    if (!local.chatId) return;
+    if (!local.chatId || document.visibilityState === "hidden") return;
     const chat = currentChat();
     if (!chat) return;
     const before = local.messages.length;
     local.messages = local.messages.filter((m) => !m.expiresAt || m.expiresAt > Date.now());
     if (local.messages.length !== before) renderMessages();
     renderHeader();
-    if (Date.now() - local.lastPurge > 90_000) {
+    if (Date.now() - local.lastPurge > 300_000) {
       local.lastPurge = Date.now();
       purgeExpiredMessages(local.chatId).catch(() => {});
     }

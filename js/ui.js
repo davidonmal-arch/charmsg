@@ -85,7 +85,7 @@ export function userCardHtml(user, { own = false } = {}) {
     <div class="user-modal-body">
       <div class="user-modal-avatar">${avatarData(u.nick, u.avatar, 84)}</div>
       <div class="user-modal-name">
-        ${nickHtml(u.nick || "Аноним", u.isAdmin)}
+        ${nickHtml(u.nick || "Аноним", u.isAdmin, u.nickGradient)}
         ${rankBadge(rankOf(u))}
         ${verifiedBadge(u.verified)}
         ${u.isAdmin ? '<span class="admin-tag">admin</span>' : ""}

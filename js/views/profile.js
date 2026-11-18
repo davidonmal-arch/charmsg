@@ -246,7 +246,7 @@ export function mountProfile(container) {
     const rank = rankOf(p);
     const banner = safeUrl(p.banner || "");
     paintAvatar(previewAvatar, p.nick, p.avatar);
-    previewName.innerHTML = `${nickHtml(p.nick || "Гость", p.isAdmin)} ${rankBadge(rank)} ${verifiedBadge(p.verified)} ${p.isAdmin ? '<span class="admin-tag">admin</span>' : ""}`;
+    previewName.innerHTML = `${nickHtml(p.nick || "Гость", p.isAdmin, p.nickGradient)} ${rankBadge(rank)} ${verifiedBadge(p.verified)} ${p.isAdmin ? '<span class="admin-tag">admin</span>' : ""}`;
     previewBio.textContent = p.bio || "Без описания — загадочная личность.";
     previewCoins.innerHTML = `${fmtNum(p.coins || 0)} <small>CR</small>`;
     previewChr.innerHTML = `${fmtNum(p.chr || 0, 2)} <small>CHR</small>`;

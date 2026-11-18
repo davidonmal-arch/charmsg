@@ -120,14 +120,14 @@ function renderRoute() {
 let headerSignature = "";
 function updateHeader() {
   const p = state.profile;
-  const signature = `${state.admin}|${p?.nick || ""}|${p?.avatar || ""}|${!!p?.isAdmin}|${p?.coins || 0}`;
+  const signature = `${state.admin}|${p?.nick || ""}|${p?.avatar || ""}|${!!p?.isAdmin}|${p?.nickGradient || ""}|${p?.coins || 0}`;
   if (signature === headerSignature) {
     updateNav();
     return;
   }
   headerSignature = signature;
   meAvatar.innerHTML = avatarData(p?.nick || "Гость", p?.avatar || "", "");
-  meName.innerHTML = p ? nickHtml(p.nick || "Гость", p.isAdmin) : "Гость";
+  meName.innerHTML = p ? nickHtml(p.nick || "Гость", p.isAdmin, p.nickGradient) : "Гость";
   balanceValue.textContent = fmtNum(p?.coins || 0);
   updateNav();
 }
@@ -399,6 +399,24 @@ async function boot() {
       });
   }
   let subscriptions = [];
+  function subscribeOnRoutes(start, ...routes) {
+    let stop;
+    const sync = () => {
+      if (routes.includes(currentRoute())) {
+        stop ||= start();
+      } else if (stop) {
+        stop();
+        stop = undefined;
+      }
+    };
+    window.addEventListener("hashchange", sync);
+    sync();
+    return () => {
+      window.removeEventListener("hashchange", sync);
+      stop?.();
+    };
+  }
+
   function subscribeData() {
     subscriptions.push(subscribeUsers(
       (users) => {
@@ -417,32 +435,33 @@ async function boot() {
       (err) => {
         console.error("chats subscription", err);
         if (err.code !== "functions/resource-exhausted") toast("Не удалось загрузить чаты", "error");
-      }
+      },
+      () => ["chats", "profile", "admin"].includes(currentRoute())
     ));
 
-    subscriptions.push(subscribeMarket(
+    subscriptions.push(subscribeOnRoutes(() => subscribeMarket(
       (market) => {
         state.market = market;
         notify();
       },
       (err) => console.warn("market subscription", err)
-    ));
+    ), "market", "admin"));
 
-    subscriptions.push(subscribeTrades(
+    subscriptions.push(subscribeOnRoutes(() => subscribeTrades(
       (trades) => {
         state.trades = trades;
         notify();
       },
       (err) => console.warn("trades subscription", err)
-    ));
+    ), "market"));
 
-    subscriptions.push(subscribeCasino(
+    subscriptions.push(subscribeOnRoutes(() => subscribeCasino(
       (plays) => {
         state.casino = plays;
         notify();
       },
       (err) => console.warn("casino subscription", err)
-    ));
+    ), "casino"));
 
     subscriptions.push(subscribePastes(
       (pastes) => {
@@ -453,13 +472,13 @@ async function boot() {
       () => state.route === "pastes"
     ));
 
-    subscriptions.push(subscribeNfts(
+    subscriptions.push(subscribeOnRoutes(() => subscribeNfts(
       (nfts) => {
         state.nfts = nfts;
         notify();
       },
       (err) => console.warn("nfts subscription", err)
-    ));
+    ), "market", "casino"));
   }
 
   subscribeProfile(

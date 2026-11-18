@@ -20,6 +20,7 @@ import {
 import {
   MAX_RANK,
   NFT_MIN_RANK,
+  NICK_GRADIENTS,
   clamp,
   rankOf
 } from "./util.js";
@@ -201,7 +202,8 @@ function subscribeAction(load, cb, onError, interval, allowed) {
       }
     } finally {
       running = false;
-      if (active) timer = setTimeout(refresh, failures ? Math.min(120_000, interval * (2 ** Math.min(failures, 5))) : interval);
+      const delay = typeof interval === "function" ? interval() : interval;
+      if (active) timer = setTimeout(refresh, failures ? Math.min(120_000, delay * (2 ** Math.min(failures, 5))) : delay);
     }
   }
   const wake = () => {
@@ -299,8 +301,8 @@ export function subscribeUsers(cb, onError, max = 400) {
 }
 
 // ---------------- chats ----------------
-export function subscribeChats(uid, cb, onError) {
-  return subscribeAction(() => runAction("listChats"), cb, onError, 25_000);
+export function subscribeChats(uid, cb, onError, allowed) {
+  return subscribeAction(() => runAction("listChats"), cb, onError, 30_000, allowed);
 }
 
 export async function createPublicChat(data) {
@@ -323,18 +325,21 @@ export function subscribeMessages(chatId, cb, onError) {
   let messages = [];
   let lastFullRead = 0;
   let newest = 0;
+  let unchangedPolls = 0;
   return subscribeAction(async () => {
     const now = Date.now();
     const full = now - lastFullRead >= 300_000;
-    const incoming = await runAction("listMessages", chatId, full ? null : Math.max(0, newest - 5000));
+    const incoming = await runAction("listMessages", chatId, full || !newest ? null : Math.max(1, newest - 5000), full ? null : newest);
     const merged = new Map((full ? [] : messages).map((message) => [message.id, message]));
     for (const message of incoming) merged.set(message.id, message);
     messages = [...merged.values()].filter((message) => message.expiresAt > now)
       .sort((a, b) => a.createdAt - b.createdAt).slice(-50);
     if (full) lastFullRead = now;
-    if (incoming.length) newest = Math.max(newest, incoming.at(-1).createdAt);
+    const latest = incoming.at(-1)?.createdAt || 0;
+    unchangedPolls = latest > newest ? 0 : unchangedPolls + 1;
+    newest = Math.max(newest, latest);
     return messages;
-  }, cb, onError, 8000);
+  }, cb, onError, () => unchangedPolls >= 5 ? 20_000 : 8000);
 }
 
 export async function sendMessage(chat, profile, text) {
@@ -349,9 +354,9 @@ export async function purgeExpiredMessages(chatId, max = 40) {
   return runAction("purgeExpiredMessages", chatId, max);
 }
 
-export async function markSeen(uid, chatId) {
+export async function markSeen(uid, chatId, timestamp) {
   try {
-    await setDoc(doc(db, "users", uid, "preferences", "seen"), { chats: { [chatId]: Date.now() } }, { merge: true });
+    await setDoc(doc(db, "users", uid, "preferences", "seen"), { chats: { [chatId]: timestamp } }, { merge: true });
   } catch {
     /* non critical */
   }
@@ -447,6 +452,11 @@ export function adminSetPlayerPassword(uid, options) {
 
 export async function adminBanUser(uid, options) {
   return runAction("adminBanUser", uid, options);
+}
+
+export async function adminSetNickGradient(uid, value) {
+  if (!Object.hasOwn(NICK_GRADIENTS, value)) throw new Error("Неизвестный градиент ника");
+  await updateDoc(doc(db, "users", uid), { nickGradient: value });
 }
 
 export async function adminSetRank(uid, rank) {

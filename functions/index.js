@@ -174,8 +174,9 @@ const actions = {
     }
     return [...result.values()].sort((a, b) => (b.lastMessageAt || b.createdAt || 0) - (a.lastMessageAt || a.createdAt || 0));
   },
-  async listMessages(user, key, since) {
-    await authorizedChat(key, user);
+  async listMessages(user, key, since, newest) {
+    const chat = await authorizedChat(key, user);
+    if (Number.isSafeInteger(newest) && newest === (chat.lastMessageAt || 0)) return [];
     const now = Date.now();
     const collection = db().collection("chats").doc(key).collection("messages");
     const messages = Number.isSafeInteger(since) && since > 0

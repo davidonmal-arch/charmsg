@@ -269,8 +269,23 @@ export function avatarData(nick = "", avatar = "", size = "") {
   return `<span class="avatar avatar-initials"${sizeAttr} style="background:linear-gradient(135deg,${g[0]},${g[1]})">${escapeHtml(label)}</span>`;
 }
 
-export function nickHtml(nick = "", isAdmin = false, extraClass = "") {
-  const cls = `nick ${isAdmin ? "nick-admin" : ""} ${extraClass}`.trim();
+export const NICK_GRADIENTS = {
+  "": "По умолчанию",
+  sunset: "Закат",
+  ocean: "Океан",
+  aurora: "Северное сияние",
+  gold: "Золото",
+  candy: "Розовый лёд",
+  rainbow: "Радуга"
+};
+
+export function nickClasses(isAdmin, gradient) {
+  const custom = gradient && Object.hasOwn(NICK_GRADIENTS, gradient) ? ` nick-gradient nick-gradient-${gradient}` : "";
+  return (isAdmin ? "nick-admin" : "") + custom;
+}
+
+export function nickHtml(nick = "", isAdmin = false, gradient) {
+  const cls = `nick ${nickClasses(isAdmin, gradient)}`.trim();
   return `<span class="${cls}">${escapeHtml(nick || "Аноним")}</span>`;
 }
 
