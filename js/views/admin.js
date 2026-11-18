@@ -213,7 +213,6 @@ export function mountAdmin(container) {
     </div>`;
 
   const $ = (id) => container.querySelector(`#${id}`);
-  const panelFor = (name) => container.querySelector(`[data-panel="${name}"]`);
 
   async function loadStats() {
     try {
@@ -331,7 +330,7 @@ export function mountAdmin(container) {
     btn.addEventListener("click", () => {
       activeTab = btn.dataset.tab;
       container.querySelectorAll("[data-tab]").forEach((b) => b.classList.toggle("active", b === btn));
-      ["users", "content", "market", "broadcast"].forEach((name) => panelFor(name).classList.toggle("hidden", name !== activeTab));
+      container.querySelectorAll("[data-panel]").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== activeTab));
       if (activeTab === "users") loadUsers();
       if (activeTab === "content") renderRooms();
       if (activeTab === "market") refreshMarketPanel();
