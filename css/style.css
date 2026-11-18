@@ -1539,7 +1539,7 @@ body.is-banned .topbar { justify-content: center; }
 /* ============================================================
    Casino · roulette + upgrader
    ============================================================ */
-.casino-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+.casino-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
 .casino-tab {
   appearance: none;
   border: 1px solid var(--line);

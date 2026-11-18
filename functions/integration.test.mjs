@@ -185,6 +185,52 @@ assert.equal((await profile(alice)).coins, receiverBefore.coins);
 await reject(invoke(bob, "giftNft", numbered, "Alice" + suffix), "FAILED_PRECONDITION");
 await reject(invoke(alice, "setNftSale", numbered, 3.01), "FAILED_PRECONDITION");
 
+const seriesInput = {
+  name: "Test edition", photos: ["https://example.test/a.jpg", "https://example.test/b.jpg"],
+  count: 3, price: 5, upgradePrice: 2
+};
+await reject(invoke(alice, "releaseNfts", seriesInput), "PERMISSION_DENIED");
+await invoke(admin, "releaseNfts", seriesInput);
+const copies = await nfts.where("name", "==", seriesInput.name).get();
+assert.equal(copies.size, 3);
+const base = copies.docs[0];
+assert.equal(base.data().forSale, true);
+await reject(invoke(alice, "enhanceNft", base.id), "FAILED_PRECONDITION");
+await invoke(alice, "buyNft", base.id);
+const beforeEnhance = (await profile(alice)).coins;
+const enhanced = await invoke(alice, "enhanceNft", base.id);
+const upgradeDoc = (await base.ref.get()).data();
+assert.ok(seriesInput.photos.includes(upgradeDoc.image));
+assert.notEqual(enhanced.effect, "none");
+assert.equal(upgradeDoc.number, enhanced.number);
+assert.equal((await profile(alice)).coins, beforeEnhance - 2);
+await reject(invoke(alice, "enhanceNft", base.id), "FAILED_PRECONDITION");
+
+for (const [game, faces, payout] of [["coin", 2, 2], ["dice", 6, 5]]) {
+  const before = (await profile(bob)).coins;
+  const round = await invoke(bob, "playChance", { game, guess: 1, amount: 1 });
+  assert.ok(round.result >= 1 && round.result <= faces);
+  assert.equal((await profile(bob)).coins, before - 1 + (round.result === 1 ? payout : 0));
+}
+const clickerRef = users.doc(uid(bob)).collection("private").doc("clicker");
+const fastIrregular = Array.from({ length: 16 }, (_, i) => i * 58 + (i % 3) * 9);
+assert.equal((await invoke(bob, "playClicker", { taps: fastIrregular })).reward, 3);
+await reject(invoke(bob, "playClicker", { taps: fastIrregular }), "FAILED_PRECONDITION");
+await clickerRef.update({ earned: 59, lastAt: 0 });
+assert.equal((await invoke(bob, "playClicker", { taps: fastIrregular })).reward, 1);
+await clickerRef.update({ lastAt: 0 });
+const slowRegular = Array.from({ length: 16 }, (_, i) => i * 180);
+assert.equal((await invoke(bob, "playClicker", { taps: slowRegular })).suspicious, false);
+for (let i = 0; i < 3; i++) {
+  await clickerRef.update({ lastAt: 0 });
+  const round = await invoke(bob, "playClicker", { taps: Array.from({ length: 16 }, (_, j) => j * 60) });
+  assert.equal(round.suspicious, true);
+  assert.equal(round.banned, i === 2);
+  assert.equal(round.reward, 0);
+}
+assert.equal((await profile(bob)).banType, "clicker");
+await invoke(admin, "adminUnbanUser", uid(bob));
+
 const passwordData = { login: "player_" + suffix, password: "new-test-password-001" };
 await reject(invoke(bob, "adminSetPlayerPassword", uid(alice), passwordData), "PERMISSION_DENIED");
 await reject(invoke(admin, "adminSetPlayerPassword", uid(admin), passwordData), "PERMISSION_DENIED");

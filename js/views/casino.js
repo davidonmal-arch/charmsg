@@ -9,6 +9,8 @@ import {
   nftTitle,
   nftResaleLimit,
   playUpgrade,
+  playChance,
+  playClicker,
   rouletteColor,
   spinRoulette
 } from "../store.js";
@@ -87,6 +89,9 @@ export function mountCasino(container) {
     <div class="casino-tabs" id="casinoTabs">
       <button type="button" class="casino-tab active" data-game="roulette">🎡 Рулетка</button>
       <button type="button" class="casino-tab" data-game="upgrade">⬆ Апгрейдер</button>
+      <button type="button" class="casino-tab" data-game="coin">Монетка</button>
+      <button type="button" class="casino-tab" data-game="dice">Кости</button>
+      <button type="button" class="casino-tab" data-game="clicker">Кликер</button>
     </div>
 
     <div class="casino-grid">
@@ -203,6 +208,28 @@ export function mountCasino(container) {
             <button type="button" class="btn btn-primary casino-play" id="upgradeBtn">Запустить апгрейдер</button>
           </div>
           <p class="hint" style="margin:10px 0 0">Шанс = стоимость ставки / стоимость цели, от ${Math.round(UPGRADE_MIN_CHANCE * 100)}% до ${Math.round(UPGRADE_MAX_CHANCE * 100)}%. Обычная ставка NFT оценивается в 1 CR. Максимальная цена цели для такой ставки — 50 CR. Если вы проиграли, ставка уходит дому. NFT-цель должна быть выставлена на продажу, а продавец получает её цену только при вашей победе.</p>
+        </section>
+        ${["coin", "dice"].map((mode) => `
+          <section class="card casino-panel hidden" data-game-panel="${mode}">
+            <form class="stack" data-chance-game="${mode}">
+              <h2 class="section-title">${mode === "coin" ? "Монетка" : "Кости"}</h2>
+              <p class="hint">${mode === "coin" ? "Угадай сторону монеты. Выплата ×2." : "Угадай грань кубика. Выплата ×5."}</p>
+              <label class="field">Прогноз<select class="input" name="guess">
+                ${(mode === "coin" ? ["Орёл", "Решка"] : [1, 2, 3, 4, 5, 6]).map((label, index) =>
+                  `<option value="${index + 1}">${label}</option>`).join("")}
+              </select></label>
+              <label class="field">Ставка, CR<input class="input" type="number" name="amount" min="1" max="100000" value="1" required></label>
+              <button class="btn btn-primary" type="submit">${mode === "coin" ? "Подбросить" : "Бросить кубик"}</button>
+              <p class="hint" role="status"></p>
+            </form>
+          </section>
+        `).join("")}
+        <section class="card casino-panel hidden stack" data-game-panel="clicker">
+          <h2 class="section-title">Кликер</h2>
+          <p class="hint">Без ставки. Раунд идёт 10 секунд: 1 CR за каждые 5 нажатий, до 30 нажатий за раунд и до 60 CR за день.</p>
+          <p class="hint">Быстрые нажатия с почти одинаковыми интервалами в трёх раундах подряд приводят к бану на 10 минут.</p>
+          <button class="btn btn-primary" type="button" id="clickerTap">Нажать и начать раунд</button>
+          <p class="hint" role="status" id="clickerStatus"></p>
         </section>
       </div>
 
@@ -416,12 +443,14 @@ export function mountCasino(container) {
       .slice(0, 24)
       .map((play) => {
         const win = !!play.win;
-        if (play.game === "roulette") {
-          const color = play.color === "red" ? "красное" : play.color === "black" ? "чёрное" : "зеро";
+        if (["roulette", "coin", "dice"].includes(play.game)) {
+          const label = play.game === "coin" ? (play.result === 1 ? "Орёл" : "Решка")
+            : play.game === "dice" ? "Выпало " + play.result
+            : (play.color === "red" ? "красное" : play.color === "black" ? "чёрное" : "зеро") + " · " + play.result;
           return `<div class="casino-feed-row">
-            <span class="casino-feed-game">🎡</span>
+            <span class="casino-feed-game">${play.game === "coin" ? "◉" : play.game === "dice" ? "⚄" : "🎡"}</span>
             <span class="casino-feed-nick ${play.isAdmin ? "nick-admin" : ""}" data-uid="${escapeHtml(play.uid || "")}">${escapeHtml(play.nick || "Аноним")}</span>
-            <span class="casino-feed-info">${escapeHtml(color)} · ${escapeHtml(String(play.result))}</span>
+            <span class="casino-feed-info">${escapeHtml(label)}</span>
             <span class="casino-feed-amount ${win ? "win" : "lose"}">${win ? "+" : "−"}${fmtNum(win ? play.payout : play.amount, 0)} CR</span>
             <span class="casino-feed-time">${fmtRelative(play.createdAt)}</span>
           </div>`;
@@ -597,6 +626,65 @@ export function mountCasino(container) {
 
   upgradeBtn.addEventListener("click", doUpgrade);
 
+  container.querySelectorAll("[data-chance-game]").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = form.querySelector("button");
+      const status = form.querySelector('[role="status"]');
+      button.disabled = true;
+      try {
+        const mode = form.dataset.chanceGame;
+        const result = await playChance({
+          game: mode, guess: Number(form.elements.guess.value), amount: Number(form.elements.amount.value)
+        });
+        const outcome = mode === "coin" ? (result.result === 1 ? "Орёл" : "Решка") : "Выпало " + result.result;
+        status.textContent = outcome + " · " + (result.win ? `выигрыш ${result.net} CR` : `проигрыш ${result.amount} CR`);
+      } catch (error) {
+        status.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  const tapButton = $("clickerTap");
+  const clickerStatus = $("clickerStatus");
+  let tapStart = null;
+  let tapTimer;
+  let taps = [];
+  tapButton.addEventListener("click", () => {
+    if (tapStart === null) {
+      tapStart = performance.now();
+      tapTimer = setTimeout(finishClicker, 10_000);
+    }
+    const elapsed = Math.round(performance.now() - tapStart);
+    if (elapsed <= 10_000 && taps.length < 30) taps.push(elapsed);
+    tapButton.textContent = `Нажатия: ${taps.length} / 30`;
+    if (taps.length === 30) tapButton.disabled = true;
+  });
+
+  async function finishClicker() {
+    tapButton.disabled = true;
+    try {
+      if (taps.length < 5) {
+        clickerStatus.textContent = "Нужно хотя бы 5 нажатий за раунд.";
+        return;
+      }
+      const result = await playClicker(taps);
+      clickerStatus.textContent = result.suspicious
+        ? "Раунд отмечен как подозрительный. Награда не начислена."
+        : `Начислено ${result.reward} CR. Остаток дневного лимита: ${result.remaining} CR.`;
+    } catch (error) {
+      clickerStatus.textContent = error.message;
+    } finally {
+      tapStart = null;
+      taps = [];
+      tapButton.disabled = false;
+      tapButton.textContent = "Нажать и начать раунд";
+    }
+  }
+
+
   feedEl.addEventListener("click", (e) => {
     const row = e.target.closest("[data-uid]");
     if (row?.dataset.uid) openProfileModal(row.dataset.uid);
@@ -609,5 +697,6 @@ export function mountCasino(container) {
     unsub();
     if (spinTimer) clearTimeout(spinTimer);
     if (upgradeTimer) clearTimeout(upgradeTimer);
+    clearTimeout(tapTimer);
   };
 }

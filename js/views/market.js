@@ -7,6 +7,8 @@ import {
   createNft,
   deleteNft,
   effectClass,
+  enhanceNft,
+  releaseNfts,
   giftNft,
   nftTitle,
   nftResaleLimit,
@@ -217,6 +219,7 @@ export function mountMarket(container) {
         </div>
         <div class="row wrap">
           <span class="badge" id="nftAccess">—</span>
+          <button class="btn btn-primary btn-sm" id="releaseNftsBtn" type="button" hidden>Выпустить серию</button>
           <button class="btn btn-primary btn-sm" id="createNftBtn" type="button">Создать NFT</button>
         </div>
       </div>
@@ -431,6 +434,7 @@ export function mountMarket(container) {
           <h3>${escapeHtml(nftTitle(nft))}</h3>
           ${nft.forSale ? '<span class="badge solid">продаётся</span>' : '<span class="badge">в коллекции</span>'}
         </div>
+        ${nft.seriesId ? `<p class="hint">${nft.upgraded ? "Улучшенная копия" : `Базовая копия · улучшение ${fmtNum(nft.upgradePrice)} CR`}</p>` : ""}
         ${nft.description ? `<p class="nft-desc">${escapeHtml(nft.description)}</p>` : ""}
         <div class="nft-owner" data-uid="${escapeHtml(nft.ownerUid)}" role="button" tabindex="0">
           ${avatarData(owner.nick, owner.avatar, 24)}
@@ -443,6 +447,7 @@ export function mountMarket(container) {
                <input class="input nft-price-input" data-nft-price="${nft.id}" inputmode="decimal" placeholder="цена CR" value="${nft.forSale ? price : ""}" />
                <button class="btn btn-sm btn-primary" data-nft-list="${nft.id}" type="button">${nft.forSale ? "Обновить" : "Выставить"}</button>
                ${nft.forSale ? `<button class="btn btn-sm btn-ghost" data-nft-unlist="${nft.id}" type="button">Снять</button>` : ""}
+               ${nft.seriesId && !nft.upgraded && nft.lastPrice > 0 ? `<button class="btn btn-sm btn-primary" data-nft-enhance="${escapeHtml(nft.id)}" type="button">Улучшить за ${fmtNum(nft.upgradePrice)} CR</button>` : ""}
                <button class="btn btn-sm btn-ghost" data-nft-gift="${escapeHtml(nft.id)}" type="button">Передать</button>
                <button class="btn btn-sm btn-ghost" data-nft-feature="${escapeHtml(nft.id)}" type="button">${state.profile?.featuredNftId === nft.id ? "Убрать из профиля" : "В профиль"}</button>
                <button class="btn btn-sm btn-danger" data-nft-delete="${nft.id}" type="button" title="Удалить NFT">×</button>`
@@ -461,6 +466,7 @@ export function mountMarket(container) {
       if (nftFilter === "mine") return nft.ownerUid === state.uid;
       return true;
     });
+    $("releaseNftsBtn").hidden = !state.admin;
     const allowed = canCreateNft(state.profile);
     nftAccess.textContent = allowed
       ? "создание открыто"
@@ -493,6 +499,47 @@ export function mountMarket(container) {
     } catch (err) {
       toast(err.message || "Не удалось купить NFT", "error");
     }
+  }
+
+  function openReleaseNfts() {
+    const modal = openModal(`
+      <button class="modal-close" data-close aria-label="Закрыть">×</button>
+      <h3 class="modal-title">Выпустить серию NFT</h3>
+      <p class="modal-sub">Первое фото видно на базовой копии. После покупки игрок может один раз получить случайное фото, эффект и номер.</p>
+      <form class="stack">
+        <label class="field">Название<input class="input" name="title" required minlength="2" maxlength="60"></label>
+        <label class="field">Описание<textarea class="textarea" name="description" maxlength="500"></textarea></label>
+        <label class="field">Фото вариантов (2–5)<input class="input" name="files" type="file" accept="image/*" multiple></label>
+        <label class="field">Или HTTPS-ссылки, по одной в строке<textarea class="textarea" name="links" rows="2"></textarea></label>
+        <label class="field">Тираж<input class="input" name="count" type="number" min="1" max="50" value="10" required></label>
+        <label class="field">Цена копии, CR<input class="input" name="price" type="number" min="1" max="100000" value="10" required></label>
+        <label class="field">Цена улучшения, CR<input class="input" name="upgradePrice" type="number" min="1" max="100000" value="5" required></label>
+        <p class="error-text" role="alert"></p>
+        <button class="btn btn-primary btn-block" type="submit">Выставить тираж</button>
+      </form>`);
+    const form = modal.body.querySelector("form");
+    const button = form.querySelector("button");
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      button.disabled = true;
+      const { title, description, files, links, count, price, upgradePrice } = form.elements;
+      try {
+        const urls = links.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+        if (files.files.length + urls.length < 2 || files.files.length + urls.length > 5) throw new Error("Добавьте от 2 до 5 фото.");
+        const photos = await Promise.all([...files.files].map((file) =>
+          imageFileToDataUrl(file, { maxW: 420, maxH: 420, quality: 0.65 })
+        ));
+        const result = await releaseNfts({
+          name: title.value, description: description.value, photos: [...photos, ...urls],
+          count: Number(count.value), price: Number(price.value), upgradePrice: Number(upgradePrice.value)
+        });
+        modal.close();
+        toast(`Выставлено копий: ${result.count}`, "success");
+      } catch (error) {
+        form.querySelector('[role="alert"]').textContent = error.message;
+        button.disabled = false;
+      }
+    });
   }
 
   function openCreateNft() {
@@ -711,8 +758,26 @@ export function mountMarket(container) {
     refreshNfts();
   });
   createNftBtn.addEventListener("click", openCreateNft);
+  $("releaseNftsBtn").addEventListener("click", openReleaseNfts);
 
   nftGrid.addEventListener("click", async (e) => {
+    const enhanceButton = e.target.closest("[data-nft-enhance]");
+    if (enhanceButton) {
+      const nft = state.nfts.find((item) => item.id === enhanceButton.dataset.nftEnhance);
+      if (!nft) return;
+      const ok = await confirmDialog("Улучшить NFT?", `За ${fmtNum(nft.upgradePrice)} CR копия получит случайное фото, эффект и номер. Улучшение доступно один раз.`, "Улучшить");
+      if (!ok) return;
+      enhanceButton.disabled = true;
+      try {
+        const result = await enhanceNft(nft.id);
+        toast(`Улучшение применено: #${result.number}, ${effectName(result.effect)}`, "success");
+      } catch (error) {
+        toast(error.message, "error");
+      } finally {
+        enhanceButton.disabled = false;
+      }
+      return;
+    }
     const giftButton = e.target.closest("[data-nft-gift]");
     if (giftButton) {
       const nft = state.nfts.find((item) => item.id === giftButton.dataset.nftGift);

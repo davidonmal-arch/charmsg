@@ -1,3 +1,4 @@
+import { enhanceNft, releaseNfts } from "./releases.js";
 import { browserSignals, checkNetworkBan, rememberSignals, updatePlayerBan } from "./network-ban.js";
 import { getAuth } from "firebase-admin/auth";
 import { cert, initializeApp } from "firebase-admin/app";
@@ -269,6 +270,13 @@ const actions = {
       tx.update(profile, { featuredNftId: key });
     });
   },
+  releaseNfts: (user, input) => {
+    if (!user.isAdmin) throw denied();
+    return releaseNfts(user, data(input));
+  },
+  enhanceNft: (user, key) => enhanceNft(user.uid, id(key)),
+  playChance: (user, input) => ops.playChance(user, data(input)),
+  playClicker: (user, input) => ops.playClicker(user, data(input)),
   createNft: (user, input) => ops.createNft(user, data(input)),
   setNftSale: (user, key, price) => ops.setNftSale(id(key), user, price),
   giftNft: (user, key, nick) => ops.giftNft(id(key), user.uid, nick),

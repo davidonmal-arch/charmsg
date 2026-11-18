@@ -249,7 +249,7 @@ export function mountAdmin(container) {
           <td class="mono">${fmtNum(u.coins || 0, 1)}</td>
           <td class="mono">${fmtNum(u.chr || 0, 3)}</td>
           <td class="mono">${fmtNum(u.msgCount || 0)}</td>
-          <td>${u.banned ? `<span class="badge" style="color:#e0a6bf" title="${escapeHtml(u.banReason || "")}">${u.banType === "radical" ? "усиленный бан" : u.banType === "spam" ? "бан: спам" : u.banType === "screenshot" ? "бан: скриншот" : "ручной бан"}${Number(u.banUntil) > 0 ? " · временно" : " · бессрочно"}</span>` : '<span class="badge">активен</span>'}</td>
+          <td>${u.banned ? `<span class="badge" style="color:#e0a6bf" title="${escapeHtml(u.banReason || "")}">${u.banType === "clicker" ? "бан: автокликер" : u.banType === "radical" ? "усиленный бан" : u.banType === "spam" ? "бан: спам" : u.banType === "screenshot" ? "бан: скриншот" : "ручной бан"}${Number(u.banUntil) > 0 ? " · временно" : " · бессрочно"}</span>` : '<span class="badge">активен</span>'}</td>
           <td><div class="table-actions">
             <button class="btn btn-sm" data-action="ban" data-uid="${escapeHtml(uid)}" data-banned="${u.banned ? "1" : "0"}">${u.banned ? "Разбан" : "Бан"}</button>
             ${uid !== state.uid ? `<button class="btn btn-sm btn-ghost" data-action="password" data-uid="${escapeHtml(uid)}">Пароль</button>` : ""}

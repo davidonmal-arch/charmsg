@@ -557,38 +557,70 @@ export async function spinRoulette(profile, { betType, betValue = null, amount }
   const color = rouletteColor(result);
   const win = type === "number" ? result === number : color === type;
   const multiplier = type === "number" ? 36 : 2;
+  return settleChance(profile, bet, multiplier, win, {
+    game: "roulette", betType: type, betValue: number, result, color
+  });
+}
+
+export async function playChance(profile, { game, guess, amount }) {
+  if (game !== "coin" && game !== "dice") throw new Error("Выберите игру");
+  const sides = game === "coin" ? 2 : 6;
+  if (!Number.isInteger(guess) || guess < 1 || guess > sides) throw new Error("Выберите результат ставки");
+  const result = randomInt(1, sides + 1);
+  return settleChance(profile, casinoBet(amount), game === "coin" ? 2 : 5, result === guess, { game, guess, result });
+}
+
+async function settleChance(profile, bet, multiplier, win, round) {
   const payout = win ? bet * multiplier : 0;
   const now = Date.now();
-
   await runTransaction(db, async (tx) => {
     const userRef = doc(db, "users", profile.uid);
-    const userSnap = await tx.get(userRef);
-    if (!userSnap.exists()) throw new Error("Профиль не найден");
-    const data = userSnap.data();
-    if (data.banned) throw new Error("Аккаунт заблокирован");
-    const coins = Number(data.coins) || 0;
+    const user = (await tx.get(userRef)).data();
+    if (!user || user.banned) throw new Error("Профиль недоступен");
+    const coins = Number(user.coins) || 0;
     if (coins < bet) throw new Error("Недостаточно CR для ставки");
-    tx.update(userRef, {
-      coins: Math.round((coins - bet + payout) * 100) / 100,
-      lastSeen: now
-    });
+    tx.update(userRef, { coins: Math.round((coins - bet + payout) * 100) / 100, lastSeen: now });
     tx.set(doc(collection(db, "casino")), {
-      uid: profile.uid,
-      nick: profile.nick || "Аноним",
-      isAdmin: !!profile.isAdmin,
-      game: "roulette",
-      betType: type,
-      betValue: type === "number" ? number : null,
-      amount: bet,
-      result,
-      color,
-      win,
-      payout,
-      createdAt: now
+      uid: profile.uid, nick: user.nick, isAdmin: profile.isAdmin,
+      ...round, amount: bet, win, payout, createdAt: now
     });
   });
+  return { ...round, win, payout, amount: bet, net: payout - bet, multiplier };
+}
 
-  return { result, color, win, payout, amount: bet, net: payout - bet, multiplier };
+export async function playClicker(profile, { taps }) {
+  if (!Array.isArray(taps) || taps.length < 5 || taps.length > 30 ||
+      taps.some((time, index) => !Number.isInteger(time) || time < 0 || time > 10_000 || (index > 0 && time < taps[index - 1]))) {
+    throw new Error("Нужно от 5 до 30 нажатий за 10 секунд");
+  }
+  const gaps = taps.slice(1).map((time, index) => time - taps[index]);
+  const median = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)];
+  // shortcut: browser timing detects a repeated pattern, not the presence of automation software.
+  const suspicious = taps.length >= 14 && median < 85 &&
+    gaps.filter((gap) => Math.abs(gap - median) <= 2).length >= 0.9 * gaps.length;
+  const now = Date.now();
+  const day = Math.floor(now / DAY);
+  const ref = db().collection("users").doc(profile.uid);
+  const stats = ref.collection("private").doc("clicker");
+  return db().runTransaction(async (tx) => {
+    const user = (await tx.get(ref)).data();
+    const saved = (await tx.get(stats)).data() || {};
+    if (!user || user.banned) throw new Error("Профиль недоступен");
+    if (now - (saved.lastAt || 0) < 10_000) throw new Error("Между раундами нужно подождать 10 секунд");
+    const earned = saved.day === day ? saved.earned : 0;
+    const strikes = suspicious ? (saved.day === day ? saved.strikes : 0) + 1 : 0;
+    const reward = suspicious ? 0 : Math.max(0, Math.min(60 - earned, Math.floor(taps.length / 5)));
+    tx.set(stats, { day, earned: earned + reward, lastAt: now, strikes: strikes >= 3 ? 0 : strikes });
+    if (strikes >= 3) {
+      tx.update(ref, {
+        banned: true, banType: "clicker", banReason: "Обнаружены быстрые нажатия с почти одинаковыми интервалами в трёх раундах подряд.",
+        banAt: now, banUntil: now + 600_000, banYears: 0, banImage: BAN_IMAGE
+      });
+    } else if (reward) {
+      tx.update(ref, { coins: Math.round(((Number(user.coins) || 0) + reward) * 100) / 100 });
+    }
+    return { reward, remaining: 60 - earned - reward, suspicious, banned: strikes >= 3 };
+  });
 }
 
 export async function playUpgrade(profile, {

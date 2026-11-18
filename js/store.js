@@ -580,6 +580,22 @@ export async function playUpgrade(profile, data) {
   return runAction("playUpgrade", data);
 }
 
+export function releaseNfts(data) {
+  return runAction("releaseNfts", data);
+}
+
+export function enhanceNft(id) {
+  return runAction("enhanceNft", id);
+}
+
+export function playChance(data) {
+  return runAction("playChance", data);
+}
+
+export function playClicker(taps) {
+  return runAction("playClicker", { taps });
+}
+
 export async function createNft(profile, data) {
   return runAction("createNft", data);
 }
