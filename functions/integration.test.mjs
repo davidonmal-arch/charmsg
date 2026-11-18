@@ -185,6 +185,30 @@ assert.equal((await profile(alice)).coins, receiverBefore.coins);
 await reject(invoke(bob, "giftNft", numbered, "Alice" + suffix), "FAILED_PRECONDITION");
 await reject(invoke(alice, "setNftSale", numbered, 3.01), "FAILED_PRECONDITION");
 
+const passwordData = { login: "player_" + suffix, password: "new-test-password-001" };
+await reject(invoke(bob, "adminSetPlayerPassword", uid(alice), passwordData), "PERMISSION_DENIED");
+await reject(invoke(admin, "adminSetPlayerPassword", uid(admin), passwordData), "PERMISSION_DENIED");
+await invoke(admin, "adminSetPlayerPassword", uid(charlie), passwordData);
+const playerEmail = passwordData.login + "@players.charmsg.invalid";
+assert.equal(uid(await login("signInWithPassword", { email: playerEmail, password: passwordData.password })), uid(charlie));
+const changed = await invoke(admin, "adminSetPlayerPassword", uid(charlie), { login: "unused_login", password: "new-test-password-002" });
+assert.equal(changed.login, passwordData.login);
+assert.equal(uid(await login("signInWithPassword", { email: playerEmail, password: "new-test-password-002" })), uid(charlie));
+
+const spammer = await login("signInWithPassword", { email: playerEmail, password: "new-test-password-002" });
+const targetChat = await invoke(admin, "createPublicChat", { name: "Spam test" });
+for (const duration of [600_000, 3_600_000, 86_400_000, 259_200_000, 500 * 365.25 * 86_400_000]) {
+  for (let copy = 0; copy < 3; copy++) await invoke(spammer, "sendMessage", targetChat, "Repeat test");
+  await reject(invoke(spammer, "sendMessage", targetChat, "  REPEAT  test "), "FAILED_PRECONDITION");
+  const blocked = await profile(spammer);
+  assert.equal(blocked.banType, "spam");
+  assert.equal(blocked.banUntil - blocked.banAt, duration);
+  assert.equal(blocked.banImage, "./assets/ban-spam.jpg");
+  await users.doc(uid(spammer)).update({ banUntil: Date.now() - 1 });
+  assert.equal(await invoke(spammer, "expireBanIfNeeded"), true);
+}
+assert.equal((await invoke(admin, "listMessages", targetChat)).length, 15);
+
 const endpoint = "https://fcm.googleapis.com/fcm/send/test-device";
 const keys = { auth: "a".repeat(22), p256dh: "a".repeat(87) };
 assert.equal((await invoke(bob, "pushPublicKey")).length, 87);

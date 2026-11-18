@@ -4,6 +4,7 @@ import {
   ADMIN_LOGIN,
   BAN_IMAGE,
   adminBanUser,
+  adminSetPlayerPassword,
   adminBroadcast,
   adminDeleteUser,
   adminGrantCoins,
@@ -248,9 +249,10 @@ export function mountAdmin(container) {
           <td class="mono">${fmtNum(u.coins || 0, 1)}</td>
           <td class="mono">${fmtNum(u.chr || 0, 3)}</td>
           <td class="mono">${fmtNum(u.msgCount || 0)}</td>
-          <td>${u.banned ? `<span class="badge" style="color:#e0a6bf" title="${escapeHtml(u.banReason || "")}">${u.banType === "screenshot" ? "бан: скриншот" : "ручной бан"}${Number(u.banUntil) > 0 ? " · временно" : " · бессрочно"}</span>` : '<span class="badge">активен</span>'}</td>
+          <td>${u.banned ? `<span class="badge" style="color:#e0a6bf" title="${escapeHtml(u.banReason || "")}">${u.banType === "spam" ? "бан: спам" : u.banType === "screenshot" ? "бан: скриншот" : "ручной бан"}${Number(u.banUntil) > 0 ? " · временно" : " · бессрочно"}</span>` : '<span class="badge">активен</span>'}</td>
           <td><div class="table-actions">
             <button class="btn btn-sm" data-action="ban" data-uid="${escapeHtml(uid)}" data-banned="${u.banned ? "1" : "0"}">${u.banned ? "Разбан" : "Бан"}</button>
+            ${uid !== state.uid ? `<button class="btn btn-sm btn-ghost" data-action="password" data-uid="${escapeHtml(uid)}">Пароль</button>` : ""}
             <button class="btn btn-sm" data-action="coins" data-uid="${escapeHtml(uid)}">+100 CR</button>
             <button class="btn btn-sm btn-danger" data-action="delete" data-uid="${escapeHtml(uid)}">Удалить</button>
           </div></td>
@@ -447,6 +449,38 @@ export function mountAdmin(container) {
     });
   }
 
+  function openPasswordModal(uid, nick) {
+    const modal = openModal(`
+      <button class="modal-close" data-close aria-label="Закрыть">×</button>
+      <h3 class="modal-title">Пароль игрока ${escapeHtml(nick)}</h3>
+      <p class="modal-sub">Если у игрока уже есть логин, он сохранится. Для анонимного игрока укажите новый логин.</p>
+      <form>
+        <div class="field"><label for="adminPlayerLogin">Логин для анонимного игрока</label>
+          <input class="input" id="adminPlayerLogin" name="login" maxlength="24" autocomplete="off" /></div>
+        <div class="field"><label for="adminPlayerPassword">Новый пароль</label>
+          <input class="input" id="adminPlayerPassword" name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required /></div>
+        <p class="error-text" role="alert"></p>
+        <button class="btn btn-primary btn-block" type="submit">Сохранить пароль</button>
+      </form>`);
+    const form = modal.body.querySelector("form");
+    const submit = form.querySelector("button");
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      submit.disabled = true;
+      try {
+        const { login } = await adminSetPlayerPassword(uid, {
+          login: form.elements.login.value, password: form.elements.password.value
+        });
+        form.reset();
+        modal.close();
+        toast(`Пароль сохранён. Логин игрока: ${login}`, "success", 9000);
+      } catch (error) {
+        form.querySelector('[role="alert"]').textContent = error.message;
+        submit.disabled = false;
+      }
+    });
+  }
+
   $("usersBody").addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-action]");
     if (!btn) return;
@@ -455,6 +489,10 @@ export function mountAdmin(container) {
     const user = users.find((u) => (u.uid || u.id) === uid);
     if (uid === state.uid && (action === "delete" || action === "ban")) {
       toast("Нельзя применить это действие к самому себе", "error");
+      return;
+    }
+    if (action === "password") {
+      openPasswordModal(uid, user?.nick || uid);
       return;
     }
     try {

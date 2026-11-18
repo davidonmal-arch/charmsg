@@ -1,3 +1,4 @@
+import { getAuth } from "firebase-admin/auth";
 import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
@@ -75,6 +76,33 @@ const actions = {
   updateProfile: (user, input) => ops.updateProfile(user.uid, data(input)),
   expireBanIfNeeded: (user) => ops.expireBanIfNeeded(user.uid),
   banForScreenshot: (user) => ops.banForScreenshot(user.uid),
+  async adminSetPlayerPassword(user, target, input) {
+    if (!user.isAdmin || target === ops.ADMIN_UID) throw denied();
+    const uid = id(target);
+    const { login, password } = data(input);
+    if (typeof password !== "string" || password.length < 12 || password.length > 128) {
+      throw new HttpsError("invalid-argument", "Пароль должен содержать от 12 до 128 символов.");
+    }
+    if (!await read("users", uid)) throw new HttpsError("not-found", "Профиль не найден.");
+    const auth = getAuth();
+    const domain = "@players.charmsg.invalid";
+    try {
+      const account = await auth.getUser(uid);
+      if (account.email && !account.email.endsWith(domain)) throw denied();
+      const newLogin = typeof login === "string" ? login.trim().toLowerCase() : "";
+      if (!account.email && !/^[a-z0-9_-]{3,24}$/.test(newLogin)) {
+        throw new HttpsError("invalid-argument", "Для анонимного игрока укажите логин: 3–24 латинские буквы, цифры, дефисы или подчёркивания.");
+      }
+      const email = account.email || newLogin + domain;
+      await auth.updateUser(uid, { ...(account.email ? {} : { email }), password });
+      return { login: email.slice(0, -domain.length) };
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      if (error.code === "auth/email-already-exists") throw new HttpsError("already-exists", "Этот логин уже занят.");
+      if (error.code === "auth/user-not-found") throw new HttpsError("not-found", "У этого профиля нет учётной записи Firebase.");
+      throw new HttpsError("failed-precondition", "Firebase не смог сохранить пароль.");
+    }
+  },
   async adminBanUser(user, target, input) {
     if (!user.isAdmin || target === ops.ADMIN_UID) throw denied();
     const { reason, duration = 0, unit = "days", image = "" } = data(input);

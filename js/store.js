@@ -444,6 +444,10 @@ export async function adminSetBanned(uid, banned) {
   }
 }
 
+export function adminSetPlayerPassword(uid, options) {
+  return runAction("adminSetPlayerPassword", uid, options);
+}
+
 export async function adminBanUser(uid, options) {
   return runAction("adminBanUser", uid, options);
 }

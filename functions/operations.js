@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 
 const db = () => getFirestore();
@@ -227,6 +227,8 @@ export async function updateChatTtl(chatId, ttl) {
   await updateDoc(doc(db, "chats", chatId), { ttl: Number(ttl) || DAY });
 }
 
+const SPAM_TERMS = [10 * 60_000, 60 * 60_000, DAY, 3 * DAY, 500 * 365.25 * DAY];
+
 export async function sendMessage(chat, profile, text) {
   const value = String(text || "").trim();
   if (!value) throw new Error("Сообщение пустое");
@@ -240,7 +242,9 @@ export async function sendMessage(chat, profile, text) {
   const msgRef = doc(collection(db, "chats", chat.id, "messages"));
   const chatRef = db().collection("chats").doc(chat.id);
   const userRef = db().collection("users").doc(profile.uid);
-  await db().runTransaction(async (tx) => {
+  const spamRef = userRef.collection("private").doc("spam");
+  const fingerprint = createHash("sha256").update(value.toLowerCase().replace(/\s+/g, " ")).digest("hex");
+  const blocked = await db().runTransaction(async (tx) => {
     const chatSnap = await tx.get(chatRef);
     const userSnap = await tx.get(userRef);
     const latest = chatSnap.data();
@@ -249,6 +253,23 @@ export async function sendMessage(chat, profile, text) {
       ? latest.verifiedOnly && !user.verified && !profile.isAdmin
       : !latest.members?.includes(profile.uid))) throw new Error("Нет доступа к чату");
 
+    if (!profile.isAdmin) {
+      const spam = (await tx.get(spamRef)).data() ?? {};
+      const recent = (spam.recent ?? []).filter((entry) => entry.at > now - 30_000);
+      recent.push({ at: now, fingerprint });
+      if (recent.filter((entry) => entry.fingerprint === fingerprint).length >= 4
+          || recent.filter((entry) => entry.at > now - 10_000).length >= 8) {
+        const step = Math.min(spam.strikes ?? 0, SPAM_TERMS.length - 1);
+        tx.set(spamRef, { strikes: step + 1, recent: [] });
+        tx.update(userRef, {
+          banned: true, banType: "spam", banReason: "Обнаружен спам в чате.",
+          banAt: now, banUntil: now + SPAM_TERMS[step], banYears: step === 4 ? 500 : 0,
+          banImage: "./assets/ban-spam.jpg"
+        });
+        return true;
+      }
+      tx.set(spamRef, { recent }, { merge: true });
+    }
     tx.create(msgRef, {
       uid: profile.uid, nick: user.nick, isAdmin: profile.isAdmin,
       text: value, createdAt: now, expiresAt: now + ttl
@@ -256,6 +277,7 @@ export async function sendMessage(chat, profile, text) {
     tx.update(chatRef, { lastMessage: value.slice(0, 140), lastMessageAt: now, lastSender: profile.uid });
     tx.update(userRef, { msgCount: (Number(user.msgCount) || 0) + 1, lastSeen: now });
   });
+  if (blocked) throw new Error("Аккаунт временно заблокирован за спам");
   return { id: msgRef.id, createdAt: now, expiresAt: now + ttl };
 }
 
