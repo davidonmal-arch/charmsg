@@ -524,8 +524,11 @@ export function mountMarket(container) {
              </div>
            </div>
            <div class="field">
-             <label for="nftPrice">Цена в CR</label>
+             <label for="nftPrice">Цена продажи в CR</label>
              <input class="input" id="nftPrice" inputmode="decimal" placeholder="Например, 250" />
+             ${state.admin ? `<label for="nftStakeCr">Оценка ставки в апгрейдере, CR</label>
+               <input class="input" id="nftStakeCr" type="number" min="1" max="100000" step="1" value="1" />`
+               : '<p class="hint">Ставка этим NFT в апгрейдере — 1 CR. Максимальная цена цели — 50 CR.</p>'}
              <div class="hint">0 — оставить в коллекции без продажи. Выставить можно позже.</div>
            </div>
          </div>
@@ -585,7 +588,8 @@ export function mountMarket(container) {
           description: body.querySelector("#nftDesc").value,
           image: draft.image,
           effect: draft.effect,
-          price: Number(body.querySelector("#nftPrice").value) || 0
+          price: Number(body.querySelector("#nftPrice").value) || 0,
+          adminStakeCr: Number(body.querySelector("#nftStakeCr")?.value ?? 1)
         });
         modal.close();
         nftFilter = "mine";

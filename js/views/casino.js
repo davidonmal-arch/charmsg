@@ -200,7 +200,7 @@ export function mountCasino(container) {
             <div class="casino-bet-summary" id="upSummary">Ставка 100 CR → цель 400 CR</div>
             <button type="button" class="btn btn-primary casino-play" id="upgradeBtn">Запустить апгрейдер</button>
           </div>
-          <p class="hint" style="margin:10px 0 0">Шанс = стоимость ставки / стоимость цели, от ${Math.round(UPGRADE_MIN_CHANCE * 100)}% до ${Math.round(UPGRADE_MAX_CHANCE * 100)}%. NFT в качестве ставки оценивается в 1 CR. Если вы проиграли, ставка уходит дому. NFT-цель должна быть выставлена на продажу, а продавец получает её цену только при вашей победе.</p>
+          <p class="hint" style="margin:10px 0 0">Шанс = стоимость ставки / стоимость цели, от ${Math.round(UPGRADE_MIN_CHANCE * 100)}% до ${Math.round(UPGRADE_MAX_CHANCE * 100)}%. Обычная ставка NFT оценивается в 1 CR. Максимальная цена цели для такой ставки — 50 CR. Если вы проиграли, ставка уходит дому. NFT-цель должна быть выставлена на продажу, а продавец получает её цену только при вашей победе.</p>
         </section>
       </div>
 
@@ -335,12 +335,18 @@ export function mountCasino(container) {
     }
   }
 
+  function nftStakeValue(nft) {
+    const value = Number(nft.adminStakeCr);
+    return state.admin && nft.createdBy === state.uid && Number.isInteger(value)
+      && value >= 1 && value <= CASINO_MAX_BET ? value : 1;
+  }
+
   function miniNftHtml(nft, { selected, attr, owner = false }) {
     return `<button type="button" class="up-nft ${selected ? "active" : ""}" ${attr}="${escapeHtml(nft.id)}">
       <span class="up-nft-art ${effectClass(nft.effect)}">${nftArt(nft)}</span>
       <span class="up-nft-body">
         <span class="up-nft-name">${escapeHtml(nft.name || "NFT")}</span>
-        <span class="up-nft-price">${fmtNum(owner ? nftValue(nft) : 1, 2)} CR</span>
+        <span class="up-nft-price">${fmtNum(owner ? nftValue(nft) : nftStakeValue(nft), 2)} CR</span>
         ${owner ? `<span class="up-nft-owner">${escapeHtml(nft.ownerNick || "Аноним")}</span>` : ""}
       </span>
     </button>`;
@@ -363,7 +369,7 @@ export function mountCasino(container) {
   function upgradeValues() {
     const stakeNft = selectedStakeNft();
     const targetNft = selectedTargetNft();
-    const stakeValue = stakeKind === "cr" ? Math.max(0, Number(stakeAmountEl.value) || 0) : stakeNft ? 1 : 0;
+    const stakeValue = stakeKind === "cr" ? Math.max(0, Number(stakeAmountEl.value) || 0) : stakeNft ? nftStakeValue(stakeNft) : 0;
     const targetValue = targetKind === "cr" ? Math.max(0, Number(targetAmountEl.value) || 0) : targetNft ? nftValue(targetNft) : 0;
     const valid = stakeValue > 0 && targetValue > stakeValue && stakeValue / targetValue >= UPGRADE_MIN_CHANCE;
     const chance = valid ? clamp(stakeValue / targetValue, UPGRADE_MIN_CHANCE, UPGRADE_MAX_CHANCE) : 0;

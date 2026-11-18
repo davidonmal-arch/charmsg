@@ -613,7 +613,10 @@ export async function playUpgrade(profile, {
     const targetOwnerRef = targetNftRef && targetNft.ownerUid ? doc(db, "users", targetNft.ownerUid) : null;
     const targetOwnerSnap = targetOwnerRef ? await tx.get(targetOwnerRef) : null;
 
-    const stakeValue = stakeKind === "cr" ? stakeCr : 1;
+    const adminValue = Number(stakeNft?.adminStakeCr);
+    const stakeValue = stakeKind === "cr" ? stakeCr
+      : profile.isAdmin && stakeNft?.createdBy === ADMIN_UID && Number.isInteger(adminValue)
+        && adminValue >= 1 && adminValue <= CASINO_MAX_BET ? adminValue : 1;
     const targetValue = targetKind === "cr" ? targetCr : nftValue(targetNft);
     if (targetValue <= stakeValue) throw new Error("Цель должна быть дороже вашей ставки");
     if (stakeValue / targetValue < UPGRADE_MIN_CHANCE) throw new Error("Шанс апгрейда ниже 2%. Увеличьте ставку или выберите более дешёвую цель");
@@ -697,7 +700,7 @@ export async function playUpgrade(profile, {
   });
 }
 
-export async function createNft(profile, { name, description = "", image = "", effect = "none", price = 0 }) {
+export async function createNft(profile, { name, description = "", image = "", effect = "none", price = 0, adminStakeCr = 1 }) {
   if (!canCreateNft(profile)) {
     throw new Error(`Создавать NFT можно с ранга «Элита» (${NFT_MIN_RANK + 1}-й уровень) или админу`);
   }
@@ -707,7 +710,11 @@ export async function createNft(profile, { name, description = "", image = "", e
   const now = Date.now();
   const ref = doc(collection(db, "nfts"));
   const value = clamp(Number(price) || 0, 0, 1_000_000_000);
+  if (profile.isAdmin && (!Number.isInteger(adminStakeCr) || adminStakeCr < 1 || adminStakeCr > CASINO_MAX_BET)) {
+    throw new Error("Оценка NFT должна быть целым числом от 1 до 100 000 CR");
+  }
   const data = {
+    ...(profile.isAdmin ? { adminStakeCr } : {}),
     name: cleanName,
     description: String(description || "").slice(0, 500),
     image: String(image || ""),

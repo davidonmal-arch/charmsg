@@ -135,6 +135,16 @@ for (const stakeType of ["cr", "nft"]) {
   }
 }
 
+const mintImage = "data:image/png;base64,iVBORw0KGgo=";
+const adminStake = await invoke(admin, "createNft", { name: "Admin valuation", image: mintImage, adminStakeCr: 25 });
+assert.equal((await nfts.doc(adminStake).get()).data().adminStakeCr, 25);
+const customUpgrade = await invoke(admin, "playUpgrade", { stakeType: "nft", stakeNftId: adminStake, targetType: "cr", targetAmount: 500 });
+assert.equal(customUpgrade.stakeValue, 25);
+assert.equal(customUpgrade.chance, 0.05);
+const regularStake = await invoke(alice, "createNft", { name: "Regular valuation", image: mintImage, adminStakeCr: 25 });
+assert.equal((await nfts.doc(regularStake).get()).data().adminStakeCr, undefined);
+await reject(invoke(alice, "playUpgrade", { stakeType: "nft", stakeNftId: regularStake, targetType: "cr", targetAmount: 51 }), "FAILED_PRECONDITION");
+
 const reason = "Manual moderation";
 const image = "data:image/png;base64,iVBORw0KGgo=";
 await reject(invoke(alice, "adminBanUser", uid(bob), { reason, duration: 1, unit: "minutes", image }), "PERMISSION_DENIED");
