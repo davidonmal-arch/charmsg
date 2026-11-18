@@ -16,7 +16,7 @@ const authBase = "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accoun
 const callable = "http://127.0.0.1:5002/charmsgAction";
 const origin = "https://davidonmal-arch.github.io";
 const server = spawn(process.execPath, [fileURLToPath(new URL("./server.js", import.meta.url))], {
-  env: { ...process.env, GCLOUD_PROJECT: project, PORT: "5002", CHARMSG_WEB_ORIGIN: origin, CHARMSG_VAPID: JSON.stringify(generateVAPIDKeys()) },
+  env: { ...process.env, GCLOUD_PROJECT: project, PORT: "5002", CHARMSG_WEB_ORIGIN: origin, CHARMSG_VAPID: JSON.stringify(generateVAPIDKeys()), CHARMSG_MODERATION_KEY: "isolated-emulator-test-key", RENDER: "true" },
   stdio: "inherit"
 });
 server.unref();
@@ -46,7 +46,7 @@ async function login(method, body = {}) {
 
 async function invoke(session, action, ...args) {
   const response = await fetch(callable, {
-    method: "POST", headers: headers(session?.idToken), body: JSON.stringify({ data: { action, args } })
+    method: "POST", headers: { ...headers(session?.idToken), ...(session?.ip ? { "CF-Connecting-IP": session.ip } : {}) }, body: JSON.stringify({ data: { action, args, browserId: session?.browserId } })
   });
   const json = await response.json();
   if (!response.ok) throw Object.assign(new Error(json.error?.message), { status: json.error?.status });
@@ -221,6 +221,21 @@ await invoke(alice, "unsubscribeFromPush", endpoint);
 assert.ok((await registered.docs[0].ref.get()).exists);
 await invoke(bob, "unsubscribeFromPush", endpoint);
 assert.ok(!(await registered.docs[0].ref.get()).exists);
+
+const browserId = "e2c6a942-580e-4a39-a15b-f11aed72cf34";
+alice.browserId = browserId;
+alice.ip = "203.0.113.42";
+await invoke(alice, "checkAccess");
+await invoke(admin, "adminBanUser", uid(alice), { mode: "radical", duration: 5, unit: "minutes" });
+assert.equal((await profile(alice)).banType, "radical");
+await reject(invoke({ ...bob, browserId }, "listChats"), "PERMISSION_DENIED");
+await reject(invoke({ ...bob, ip: alice.ip }, "listChats"), "PERMISSION_DENIED");
+await invoke(bob, "listChats");
+await invoke(admin, "adminUnbanUser", uid(alice));
+await invoke({ ...bob, browserId, ip: alice.ip }, "listChats");
+await invoke(admin, "adminBanUser", uid(alice), { duration: 5, unit: "minutes" });
+await invoke({ ...bob, browserId }, "listChats");
+await invoke(admin, "adminUnbanUser", uid(alice));
 
 const reason = "Manual moderation";
 const image = "data:image/png;base64,iVBORw0KGgo=";

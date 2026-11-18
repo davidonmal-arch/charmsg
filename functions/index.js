@@ -1,3 +1,4 @@
+import { browserSignals, checkNetworkBan, rememberSignals, updatePlayerBan } from "./network-ban.js";
 import { getAuth } from "firebase-admin/auth";
 import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -66,6 +67,11 @@ function authenticatedProfile(auth, profile) {
 }
 
 const actions = {
+  checkAccess: () => null,
+  async adminUnbanUser(user, target) {
+    if (!user.isAdmin || target === ops.ADMIN_UID) throw denied();
+    await updatePlayerBan(id(target), { banned: false, banType: "", banReason: "", banAt: 0, banYears: 0, banUntil: 0, banImage: "" }, false);
+  },
   pushPublicKey,
   subscribeToPush: (user, input) => subscribeToPush(user.uid, input),
   unsubscribeFromPush: (user, endpoint) => unsubscribeFromPush(user.uid, endpoint),
@@ -105,7 +111,8 @@ const actions = {
   },
   async adminBanUser(user, target, input) {
     if (!user.isAdmin || target === ops.ADMIN_UID) throw denied();
-    const { reason, duration = 0, unit = "days", image = "" } = data(input);
+    const { reason, duration = 0, unit = "days", image = "", mode = "account" } = data(input);
+    if (!["account", "radical"].includes(mode)) throw new HttpsError("invalid-argument", "Неизвестный тип бана.");
     const units = { minutes: 60_000, hours: 3_600_000, days: ops.DAY, years: 365.25 * ops.DAY };
     if (!Object.hasOwn(units, unit) || !Number.isSafeInteger(duration) || duration < 0
       || duration * units[unit] > 500 * units.years) {
@@ -118,14 +125,14 @@ const actions = {
     const banAt = Date.now();
     const ban = {
       banned: true,
-      banType: "manual",
+      banType: mode === "radical" ? "radical" : "manual",
       banReason: String(reason || "").trim().slice(0, 600) || "Нарушение правил сообщества",
       banAt,
       banYears: unit === "years" ? duration : 0,
       banUntil: duration ? banAt + duration * units[unit] : 0,
       banImage: image || ops.BAN_IMAGE
     };
-    await db().collection("users").doc(id(target)).update(ban);
+    await updatePlayerBan(id(target), ban, mode === "radical");
     return ban;
   },
   async adminBroadcast(user, text) {
@@ -273,13 +280,13 @@ const actions = {
   }
 };
 
-const withoutProfile = new Set(["createProfile", "ensureAdminProfile", "ensureMarket", "listChats", "listPastes"]);
+const withoutProfile = new Set(["checkAccess", "createProfile", "ensureAdminProfile", "ensureMarket", "listChats", "listPastes"]);
 let quotaRetryAt = 0;
 const quotaError = () => new HttpsError("resource-exhausted", "Временный лимит Firestore исчерпан. Попробуйте позже.");
 export const charmsgAction = onCall({
   maxInstances: 8,
   cors: process.env.CHARMSG_WEB_ORIGIN || true
-}, async ({ auth, data: request }) => {
+}, async ({ auth, data: request, rawRequest }) => {
   if (!auth) throw new HttpsError("unauthenticated", "Войдите в CharMsg");
   const { action, args } = data(request);
   if (typeof action !== "string" || !Object.hasOwn(actions, action) || !Array.isArray(args)) {
@@ -290,8 +297,14 @@ export const charmsgAction = onCall({
     const profile = await read("users", auth.uid);
     if (!profile && !withoutProfile.has(action)) throw new HttpsError("failed-precondition", "Сначала создайте профиль");
     if (profile && action === "createProfile") throw new HttpsError("already-exists", "Профиль уже существует");
-    if (profile?.banned && action !== "expireBanIfNeeded") throw denied();
-    return (await actions[action](authenticatedProfile(auth, profile), ...args)) ?? null;
+    if (profile?.banned && !["checkAccess", "expireBanIfNeeded"].includes(action)) throw denied();
+    const signals = isAdmin(auth) ? [] : browserSignals(rawRequest, request.browserId);
+    if (!profile?.banned) await checkNetworkBan(signals);
+    const result = await actions[action](authenticatedProfile(auth, profile), ...args);
+    if ((action === "checkAccess" && profile && !profile.banned) || action === "createProfile") {
+      await rememberSignals(auth.uid, signals).catch((error) => console.warn("Moderation signal save failed", error.code || "unknown"));
+    }
+    return result ?? null;
   } catch (error) {
     if (error instanceof HttpsError) throw error;
     if (error.code === 8) {

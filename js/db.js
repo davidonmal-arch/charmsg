@@ -25,15 +25,19 @@ if (local) {
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);
 }
 
+const browserId = localStorage.getItem("charmsg_browser_id") || crypto.randomUUID();
+localStorage.setItem("charmsg_browser_id", browserId);
+
 const action = httpsCallable(functions, "charmsgAction", { timeout: 105_000 });
 export async function runAction(name, ...args) {
   const startedAt = Date.now();
   try {
-    const result = (await action({ action: name, args })).data;
+    const result = (await action({ action: name, args, browserId })).data;
     clearQuota(startedAt);
     return result;
   } catch (error) {
     reportQuota(error);
+    if (error.details?.kind === "network-ban" && name !== "checkAccess") window.dispatchEvent(new Event("charmsg:network-ban"));
     throw error;
   }
 }

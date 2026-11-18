@@ -419,29 +419,12 @@ export async function adminGrantCoins(uid, amount) {
   await updateDoc(userRef, { coins: Math.max(0, Math.round((current + Number(amount)) * 100) / 100) });
 }
 
-export async function adminSetBanned(uid, banned) {
-  if (banned) {
-    const now = Date.now();
-    await updateDoc(doc(db, "users", uid), {
-      banned: true,
-      banType: "admin",
-      banReason: "Аккаунт заблокирован администратором CharMsg за нарушение правил сообщества.",
-      banAt: now,
-      banYears: 0,
-      banUntil: 0,
-      banImage: BAN_IMAGE
-    });
-  } else {
-    await updateDoc(doc(db, "users", uid), {
-      banned: false,
-      banType: "",
-      banReason: "",
-      banAt: 0,
-      banYears: 0,
-      banUntil: 0,
-      banImage: ""
-    });
-  }
+export function checkAccess() {
+  return runAction("checkAccess");
+}
+
+export function adminUnbanUser(uid) {
+  return runAction("adminUnbanUser", uid);
 }
 
 export function adminSetPlayerPassword(uid, options) {

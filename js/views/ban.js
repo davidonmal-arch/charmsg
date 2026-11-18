@@ -3,6 +3,7 @@ import { escapeHtml, fmtDateTime, fmtDuration, plural, safeUrl } from "../util.j
 
 export function mountBan(container) {
   const profile = state.profile || {};
+  const radical = profile.banType === "radical";
   const spam = profile.banType === "spam";
   const screenshot = profile.banType === "screenshot";
   const years = Number(profile.banYears) || 0;
@@ -37,7 +38,7 @@ export function mountBan(container) {
           <div class="ban-meta">
             <div class="ban-meta-row">
               <span>Тип блокировки</span>
-              <b>${spam ? "спам" : screenshot ? "скриншот экрана" : "решение администратора"}</b>
+              <b>${radical ? "усиленный бан" : spam ? "спам" : screenshot ? "скриншот экрана" : "решение администратора"}</b>
             </div>
             <div class="ban-meta-row">
               <span>Дата бана</span>

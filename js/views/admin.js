@@ -14,7 +14,7 @@ import {
   adminPurgeChat,
   adminPurgeExpired,
   adminResetMarket,
-  adminSetBanned,
+  adminUnbanUser,
   adminSetBots,
   adminSetLiquidity,
   adminSetPrice,
@@ -249,7 +249,7 @@ export function mountAdmin(container) {
           <td class="mono">${fmtNum(u.coins || 0, 1)}</td>
           <td class="mono">${fmtNum(u.chr || 0, 3)}</td>
           <td class="mono">${fmtNum(u.msgCount || 0)}</td>
-          <td>${u.banned ? `<span class="badge" style="color:#e0a6bf" title="${escapeHtml(u.banReason || "")}">${u.banType === "spam" ? "бан: спам" : u.banType === "screenshot" ? "бан: скриншот" : "ручной бан"}${Number(u.banUntil) > 0 ? " · временно" : " · бессрочно"}</span>` : '<span class="badge">активен</span>'}</td>
+          <td>${u.banned ? `<span class="badge" style="color:#e0a6bf" title="${escapeHtml(u.banReason || "")}">${u.banType === "radical" ? "усиленный бан" : u.banType === "spam" ? "бан: спам" : u.banType === "screenshot" ? "бан: скриншот" : "ручной бан"}${Number(u.banUntil) > 0 ? " · временно" : " · бессрочно"}</span>` : '<span class="badge">активен</span>'}</td>
           <td><div class="table-actions">
             <button class="btn btn-sm" data-action="ban" data-uid="${escapeHtml(uid)}" data-banned="${u.banned ? "1" : "0"}">${u.banned ? "Разбан" : "Бан"}</button>
             ${uid !== state.uid ? `<button class="btn btn-sm btn-ghost" data-action="password" data-uid="${escapeHtml(uid)}">Пароль</button>` : ""}
@@ -322,6 +322,15 @@ export function mountAdmin(container) {
       `<button class="modal-close" data-close aria-label="Закрыть">×</button>
        <h3 class="modal-title">Забанить пользователя</h3>
        <p class="modal-sub">${escapeHtml(user.nick || "Аноним")} · <span class="mono">${escapeHtml(uid)}</span>. Укажите причину, срок и фото, которое увидит пользователь на странице бана.</p>
+
+       <div class="field">
+         <label for="banMode">Тип бана</label>
+         <select class="input" id="banMode">
+           <option value="account">Обычный — только аккаунт</option>
+           <option value="radical">Усиленный — аккаунт, IP и браузер</option>
+         </select>
+         <p class="hint">Усиленный бан использует последний вход игрока и может затронуть других людей с общим IP.</p>
+       </div>
 
        <div class="field">
          <label for="banReason">Причина бана</label>
@@ -432,6 +441,7 @@ export function mountAdmin(container) {
       btn.textContent = "Баним…";
       try {
         await adminBanUser(uid, {
+          mode: body.querySelector("#banMode").value,
           reason: body.querySelector("#banReason").value,
           duration: Number(durationInput.value),
           unit: unitInput.value,
@@ -500,7 +510,7 @@ export function mountAdmin(container) {
         if (btn.dataset.banned === "1") {
           const ok = await confirmDialog("Разблокировать?", `Пользователь ${user?.nick || uid} снова получит доступ к CharMsg.`, "Разблокировать");
           if (!ok) return;
-          await adminSetBanned(uid, false);
+          await adminUnbanUser(uid);
           toast("Пользователь разблокирован", "success");
         } else {
           openBanModal(user || { uid, nick: uid });

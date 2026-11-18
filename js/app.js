@@ -1,6 +1,7 @@
 import { enableMessagePush, optOutMessagePush, setupDefaultMessagePush } from "./push.js";
 import {
   banForScreenshot,
+  checkAccess,
   currentUid,
   ensureMarket,
   ensureAdminProfile,
@@ -339,7 +340,23 @@ async function boot() {
     return;
   }
   state.uid = currentUid();
+  try {
+    await checkAccess();
+  } catch (error) {
+    if (error.details?.kind === "network-ban") {
+      state.profile = {
+        uid: state.uid, banned: true, banType: "radical", banReason: "Доступ заблокирован усиленным баном.",
+        banAt: error.details.since, banUntil: error.details.until
+      };
+      location.hash = "#/ban";
+      renderRoute();
+      hideBoot();
+      return;
+    }
+    console.warn("Access check unavailable", error.code || error.name);
+  }
 
+  window.addEventListener("charmsg:network-ban", () => location.reload(), { once: true });
   wireHeader();
   updateHeader();
   startMarketLoop();
