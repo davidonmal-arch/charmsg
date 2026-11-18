@@ -1,3 +1,4 @@
+import { clearQuota, reportQuota } from "./quota.js";
 import { auth, adminAuth, EmailAuthProvider, linkWithCredential, signInAnonymously, signInWithEmailAndPassword, signOut, runAction } from "./db.js";
 import {
   db,
@@ -264,9 +265,10 @@ export function subscribeProfile(uid, cb, onError) {
     if (profile !== undefined) cb(profile ? { ...profile, seen: seen || {} } : null);
   };
   const unsubscribeProfile = onSnapshot(doc(db, "users", uid), (snap) => {
+    if (!snap.metadata.fromCache) clearQuota();
     profile = snap.exists() ? { ...snap.data(), id: snap.id } : null;
     emit();
-  }, onError);
+  }, (error) => { reportQuota(error); onError?.(error); });
   const unsubscribeSeen = onSnapshot(doc(db, "users", uid, "preferences", "seen"), (snap) => {
     seen = snap.data()?.chats;
     emit();

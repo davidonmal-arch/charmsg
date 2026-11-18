@@ -382,7 +382,7 @@ async function boot() {
       },
       (err) => {
         console.error("chats subscription", err);
-        toast(err.code === "functions/resource-exhausted" ? "Дневной лимит базы исчерпан. Чаты загрузятся после сброса лимита." : "Не удалось загрузить чаты", "error", 7500);
+        if (err.code !== "functions/resource-exhausted") toast("Не удалось загрузить чаты", "error");
       }
     ));
 
@@ -466,7 +466,7 @@ async function boot() {
     },
     (err) => {
       console.error("profile subscription", err);
-      toast(err.code === "resource-exhausted" ? "Дневной лимит базы исчерпан. Попробуйте после его сброса." : "Нет доступа к профилю в Firestore", "error", 7500);
+      if (err.code !== "resource-exhausted") toast("Нет доступа к профилю в Firestore", "error");
       hideBoot();
     }
   );

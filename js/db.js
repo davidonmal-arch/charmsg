@@ -1,3 +1,4 @@
+import { clearQuota, reportQuota } from "./quota.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { apiOrigin, firebaseConfig } from "./firebase-config.js";
@@ -26,7 +27,15 @@ if (local) {
 
 const action = httpsCallable(functions, "charmsgAction", { timeout: 105_000 });
 export async function runAction(name, ...args) {
-  return (await action({ action: name, args })).data;
+  const startedAt = Date.now();
+  try {
+    const result = (await action({ action: name, args })).data;
+    clearQuota(startedAt);
+    return result;
+  } catch (error) {
+    reportQuota(error);
+    throw error;
+  }
 }
 
 export { EmailAuthProvider, linkWithCredential, signInAnonymously, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
