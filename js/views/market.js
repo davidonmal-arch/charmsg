@@ -512,7 +512,7 @@ export function mountMarket(container, nftOnly = false) {
       <form class="stack">
         <label class="field">Название<input class="input" name="title" required minlength="2" maxlength="60"></label>
         <label class="field">Описание<textarea class="textarea" name="description" maxlength="500"></textarea></label>
-        <label class="field">Фото вариантов (2–5)<input class="input" name="files" type="file" accept="image/*" multiple></label>
+        <label class="field">Фото вариантов (2–20)<input class="input" name="files" type="file" accept="image/*" multiple></label>
         <label class="field">Или HTTPS-ссылки, по одной в строке<textarea class="textarea" name="links" rows="2"></textarea></label>
         <label class="field">Тираж<input class="input" name="count" type="number" min="1" max="50" value="10" required></label>
         <label class="field">Цена копии, CR<input class="input" name="price" type="number" min="1" max="100000" value="10" required></label>
@@ -528,7 +528,7 @@ export function mountMarket(container, nftOnly = false) {
       const { title, description, files, links, count, price, upgradePrice } = form.elements;
       try {
         const urls = links.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
-        if (files.files.length + urls.length < 2 || files.files.length + urls.length > 5) throw new Error("Добавьте от 2 до 5 фото.");
+        if (files.files.length + urls.length < 2 || files.files.length + urls.length > 20) throw new Error("Добавьте от 2 до 20 фото.");
         const photos = await Promise.all([...files.files].map((file) =>
           imageFileToDataUrl(file, { maxW: 420, maxH: 420, quality: 0.65 })
         ));

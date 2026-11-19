@@ -26,5 +26,5 @@ app.get("/healthz", async (_request, response) => {
 });
 const callablePath = "/charmsgAction";
 app.options(callablePath, charmsgAction);
-app.post(callablePath, express.json({ limit: "2mb" }), charmsgAction);
+app.post(callablePath, express.json({ limit: "4mb" }), charmsgAction);
 app.listen(Number(process.env.PORT) || 5002, "0.0.0.0", () => console.log("CharMsg API is listening"));

@@ -5,10 +5,10 @@ import { NFT_EFFECTS } from "./operations.js";
 export async function releaseNfts(user, { name, description, photos, count, price, upgradePrice }) {
   const title = typeof name === "string" ? name.trim() : "";
   if (title.length < 2 || title.length > 60) throw new Error("Название должно содержать 2–60 символов");
-  if (!Array.isArray(photos) || photos.length < 2 || photos.length > 5 ||
+  if (!Array.isArray(photos) || photos.length < 2 || photos.length > 20 ||
       photos.some((photo) => typeof photo !== "string" || photo.length > 120_000 ||
         !/^(https:\/\/\S{1,2040}|data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+)$/.test(photo))) {
-    throw new Error("Добавьте 2–5 фото. Используйте HTTPS-ссылки или изображения до 120 КБ после сжатия.");
+    throw new Error("Добавьте 2–20 фото. Используйте HTTPS-ссылки или изображения до 120 КБ после сжатия.");
   }
   if (!Number.isSafeInteger(count) || count < 1 || count > 50) throw new Error("Тираж должен быть от 1 до 50");
   for (const cost of [price, upgradePrice]) {
