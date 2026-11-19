@@ -104,6 +104,7 @@ export function mountAdmin(container) {
       </div>
       <div class="row wrap">
         <span class="badge solid">${nickHtml("farnaz", true)}</span>
+        <a class="btn btn-sm" href="#/logs">Журнал действий</a>
         <button class="btn btn-sm" id="adminRefresh">Обновить</button>
         <button class="btn btn-sm btn-danger" id="adminLogout">Выйти</button>
       </div>

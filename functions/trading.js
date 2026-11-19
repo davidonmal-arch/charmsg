@@ -1,4 +1,5 @@
 import { getFirestore } from "./database.js";
+import { notifyTradeOffer } from "./push.js";
 
 const key = value => {
   if (typeof value !== "string" || !/^[a-zA-Z0-9_-]{1,160}$/.test(value)) throw new Error("Некорректный идентификатор");
@@ -21,17 +22,26 @@ export async function createOffer(user, input) {
   if ((!giveIds.length && !giveCr) || (!takeIds.length && !takeCr)) throw new Error("Укажите, что отдаёте и что хотите получить");
   if (giveIds.some(id => takeIds.includes(id))) throw new Error("NFT не может быть с обеих сторон обмена");
   const db = getFirestore(), ref = db.collection("offers").doc(key(input.requestId));
-  await db.runTransaction(async tx => {
+  const recipientUid = input.recipientUid ? key(input.recipientUid) : null;
+  if (recipientUid === user.uid) throw new Error("Выберите другого игрока");
+  const created = await db.runTransaction(async tx => {
     const existing = (await tx.get(ref)).data();
     if (existing) {
       if (existing.creatorUid !== user.uid || existing.giveCr !== giveCr || existing.takeCr !== takeCr
         || JSON.stringify(existing.give.map(nft => nft.id)) !== JSON.stringify(giveIds)
-        || JSON.stringify(existing.take.map(nft => nft.id)) !== JSON.stringify(takeIds)) throw new Error("Этот идентификатор уже использован другим оффером");
-      return;
+        || JSON.stringify(existing.take.map(nft => nft.id)) !== JSON.stringify(takeIds)
+        || (existing.recipientUid || null) !== recipientUid) throw new Error("Предложение уже отправлено. Для других условий создай новый обмен.");
+      return null;
     }
     const accountRef = db.doc("users/" + user.uid);
     const account = (await tx.get(accountRef)).data();
     if (!account || account.banned || account.coins < giveCr) throw new Error("Недостаточно CR или аккаунт заблокирован");
+    let recipientNick = null;
+    if (recipientUid) {
+      const recipient = (await tx.get(db.doc("users/" + recipientUid))).data();
+      if (!recipient || recipient.banned) throw new Error("Получатель не найден или заблокирован");
+      recipientNick = recipient.nick;
+    }
     const active = await tx.get(db.collection("offers").where("creatorUid", "==", user.uid).where("status", "==", "open").limit(20));
     if (active.size >= 20) throw new Error("Можно держать до 20 открытых офферов");
     const give = [], take = [];
@@ -40,16 +50,27 @@ export async function createOffer(user, input) {
       if (!nft || nft.tradeOfferId) throw new Error("NFT не найден или уже зарезервирован");
       const offered = giveIds.includes(id);
       if (offered ? nft.ownerUid !== user.uid : !nft.ownerUid || nft.ownerUid === user.uid) throw new Error("Проверьте владельцев NFT");
+      if (!offered && recipientUid && nft.ownerUid !== recipientUid) throw new Error("Выбранный NFT принадлежит другому игроку");
       (offered ? give : take).push({ id, name: nft.name || "NFT", ownerUid: nft.ownerUid, number: nft.number ?? null });
     }
     if (new Set(take.map(nft => nft.ownerUid)).size > 1) throw new Error("Запрашиваемые NFT должны принадлежать одному игроку");
     tx.update(accountRef, { coins: round(account.coins - giveCr) });
     for (const id of giveIds) tx.update(db.doc("nfts/" + id), { tradeOfferId: ref.id, forSale: false, price: 0 });
     tx.create(ref, {
-      creatorUid: user.uid, creatorNick: account.nick, give, take, giveCr, takeCr,
+      creatorUid: user.uid, creatorNick: account.nick, recipientUid, recipientNick, give, take, giveCr, takeCr,
       status: "open", createdAt: Date.now(), updatedAt: Date.now()
     });
+    if (recipientUid) tx.create(db.doc("users/" + recipientUid + "/notifications/" + ref.id), {
+      type: "offer", offerId: ref.id, senderNick: account.nick, createdAt: Date.now(), seenAt: 0
+    });
+    return { id: ref.id, creatorNick: account.nick, recipientUid, giveCr, give };
   });
+  if (created?.recipientUid) {
+    try {
+      const preview = (await hydrateOffers([created]))[0];
+      await notifyTradeOffer(created.recipientUid, preview);
+    } catch (error) { console.warn("Offer push failed", error.code || "unknown"); }
+  }
   return ref.id;
 }
 
@@ -57,7 +78,7 @@ export async function cancelOffer(user, offerId) {
   const db = getFirestore(), ref = db.doc("offers/" + key(offerId));
   return db.runTransaction(async tx => {
     const offer = (await tx.get(ref)).data();
-    if (!offer || (offer.creatorUid !== user.uid && !user.isAdmin)) throw new Error("Нет доступа к офферу");
+    if (!offer || (offer.creatorUid !== user.uid && offer.recipientUid !== user.uid && !user.isAdmin)) throw new Error("Нет доступа к офферу");
     if (offer.status !== "open") return { status: offer.status };
     const owner = db.doc("users/" + offer.creatorUid), profile = (await tx.get(owner)).data();
     if (!profile) throw new Error("Профиль автора не найден");
@@ -67,8 +88,10 @@ export async function cancelOffer(user, offerId) {
     }
     tx.update(owner, { coins: round(profile.coins + offer.giveCr) });
     for (const nft of offer.give) tx.update(db.doc("nfts/" + nft.id), { tradeOfferId: null });
-    tx.update(ref, { status: "cancelled", updatedAt: Date.now() });
-    return { status: "cancelled" };
+    const status = offer.recipientUid === user.uid ? "declined" : "cancelled";
+    tx.update(ref, { status, updatedAt: Date.now() });
+    if (offer.recipientUid) tx.set(db.doc("users/" + offer.recipientUid + "/notifications/" + offerId), { seenAt: Date.now() }, { merge: true });
+    return { status };
   });
 }
 
@@ -78,6 +101,7 @@ export async function acceptOffer(user, offerId) {
     const offer = (await tx.get(ref)).data();
     if (!offer || offer.status !== "open") throw new Error("Оффер уже закрыт");
     if (offer.creatorUid === user.uid) throw new Error("Нельзя принять собственный оффер");
+    if (offer.recipientUid && offer.recipientUid !== user.uid) throw new Error("Этот обмен предложен другому игроку");
     const creatorRef = db.doc("users/" + offer.creatorUid), takerRef = db.doc("users/" + user.uid);
     const creator = (await tx.get(creatorRef)).data(), taker = (await tx.get(takerRef)).data();
     if (!creator || !taker || creator.banned || taker.banned) throw new Error("Участник обмена заблокирован");
@@ -87,7 +111,7 @@ export async function acceptOffer(user, offerId) {
       const current = (await tx.get(db.doc("nfts/" + nft.id))).data();
       const offered = offer.give.some(item => item.id === nft.id);
       if (!current || current.ownerUid !== (offered ? offer.creatorUid : user.uid)
-        || (offered ? current.tradeOfferId !== offerId : !!current.tradeOfferId || current.forSale)) {
+        || (offered ? current.tradeOfferId !== offerId : !!current.tradeOfferId)) {
         throw new Error("NFT сменил владельца, зарезервирован или выставлен на продажу");
       }
       items.push({ id: nft.id, current, recipient: offered ? taker : creator, recipientUid: offered ? user.uid : offer.creatorUid });
@@ -100,20 +124,68 @@ export async function acceptOffer(user, offerId) {
       updatedAt: now, history: [...(current.history || []), { uid: recipientUid, nick: recipient.nick, price: 0, ts: now, offerId }].slice(-100)
     });
     tx.update(ref, { status: "accepted", acceptorUid: user.uid, acceptorNick: taker.nick, updatedAt: now });
+    if (offer.recipientUid) tx.set(db.doc("users/" + offer.recipientUid + "/notifications/" + offerId), { seenAt: now }, { merge: true });
     return { status: "accepted" };
   });
 }
 
 export async function listOffers(user, mode = "open", cursor = null) {
-  if (!["open", "mine"].includes(mode) || (cursor !== null && (!Number.isSafeInteger(cursor?.time) || cursor.time < 0))) throw new Error("Некорректный фильтр");
-  const values = [mode === "mine" ? user.uid : "open"];
-  let condition = mode === "mine" ? "(data->>'creatorUid'=$1 OR data->>'acceptorUid'=$1)" : "data->>'status'=$1";
+  if (!["open", "mine", "inbox"].includes(mode) || (cursor !== null && (!Number.isSafeInteger(cursor?.time) || cursor.time < 0))) throw new Error("Некорректный фильтр");
+  const values = [user.uid];
+  let condition = mode === "mine" ? "(data->>'creatorUid'=$1 OR data->>'acceptorUid'=$1 OR data->>'recipientUid'=$1)"
+    : mode === "inbox" ? "data->>'status'='open' AND data->>'recipientUid'=$1"
+      : "data->>'status'='open' AND (data->>'recipientUid' IS NULL OR data->>'recipientUid'=$1 OR data->>'creatorUid'=$1)";
+  if (user.isAdmin && mode === "open") condition = "data->>'status'='open' AND $1::text IS NOT NULL";
   if (cursor !== null) { values.push(cursor.time, "offers/" + key(cursor.id)); condition += " AND ((data->>'createdAt')::bigint,path) < ($2::bigint,$3::text)"; }
   const { rows } = await getFirestore().sql.query(
     "SELECT path,data FROM charmsg.documents WHERE parent='offers' AND " + condition + " ORDER BY (data->>'createdAt')::bigint DESC,path DESC LIMIT 51", values);
   const page = rows.slice(0, 50);
-  return { offers: page.map(row => ({ ...row.data, id: row.path.split("/").at(-1) })), next: rows.length > 50
+  return { offers: await hydrateOffers(page.map(row => ({ ...row.data, id: row.path.split("/").at(-1) }))), next: rows.length > 50
     ? { time: page.at(-1).data.createdAt, id: page.at(-1).path.split("/").at(-1) } : null };
+}
+
+async function hydrateOffers(offers) {
+  const paths = [...new Set(offers.flatMap(offer => [...(offer.give || []), ...(offer.take || [])].map(nft => "nfts/" + nft.id)))];
+  if (!paths.length) return offers;
+  const { rows } = await getFirestore().sql.query("SELECT path, data->>'image' AS image, data->>'effect' AS effect, data->>'ownerUid' AS owner_uid FROM charmsg.documents WHERE path=ANY($1::text[])", [paths]);
+  const images = new Map(rows.map(row => [row.path.split("/").at(-1), row]));
+  return offers.map(offer => ({ ...offer, give: offer.give.map(nft => ({ ...nft, image: images.get(nft.id)?.image || null, effect: images.get(nft.id)?.effect || "none" })),
+    take: (offer.take || []).map(nft => ({ ...nft, image: images.get(nft.id)?.image || null, effect: images.get(nft.id)?.effect || "none", ownerUid: images.get(nft.id)?.owner_uid || nft.ownerUid })) }));
+}
+
+export async function getOffer(user, offerId) {
+  const offer = (await getFirestore().doc("offers/" + key(offerId)).get()).data();
+  if (!offer || (offer.recipientUid && !user.isAdmin && ![offer.creatorUid, offer.recipientUid].includes(user.uid))) throw new Error("Обмен не найден");
+  return (await hydrateOffers([{ ...offer, id: offerId }]))[0];
+}
+
+export async function tradeCatalog(user) {
+  const db = getFirestore();
+  const { rows: players } = await db.sql.query("SELECT split_part(path,'/',2) AS uid,data->>'nick' AS nick,data->>'username' AS username FROM charmsg.documents WHERE parent='users' AND coalesce((data->>'banned')::boolean,false)=false AND split_part(path,'/',2)<>$1 ORDER BY lower(data->>'nick')", [user.uid]);
+  const { rows: nfts } = await db.sql.query("SELECT split_part(path,'/',2) AS id,data->>'name' AS name,data->>'image' AS image,data->>'effect' AS effect,data->>'ownerUid' AS owner_uid,data->>'ownerNick' AS owner_nick,data->'number' AS number FROM charmsg.documents WHERE parent='nfts' AND coalesce(data->>'tradeOfferId','')='' AND coalesce(data->>'ownerUid','')<>'' ORDER BY lower(data->>'name'),path");
+  const owners = new Set([user.uid, ...players.map(player => player.uid)]);
+  return { players, nfts: nfts.filter(nft => owners.has(nft.owner_uid)).map(({ owner_uid, owner_nick, ...nft }) => ({
+    ...nft, name: nft.name || "NFT", ownerUid: owner_uid, ownerNick: owner_nick
+  })) };
+}
+
+export async function offerInbox(user) {
+  const ref = getFirestore().collection("users/" + user.uid + "/notifications");
+  const unread = ref.where("seenAt", "==", 0);
+  const [count, notices] = await Promise.all([unread.count().get(), unread.orderBy("createdAt", "desc").limit(5).get()]);
+  const offers = [];
+  for (const notice of notices.docs) {
+    const data = notice.data();
+    const offer = (await getFirestore().doc("offers/" + data.offerId).get()).data();
+    if (offer?.status === "open" && offer.recipientUid === user.uid) offers.push({ ...offer, id: notice.id });
+  }
+  return { count: count.data().count, offers: await hydrateOffers(offers) };
+}
+
+export async function markOfferSeen(user, offerId) {
+  const ref = getFirestore().doc("users/" + user.uid + "/notifications/" + key(offerId));
+  const notice = await ref.get();
+  if (notice.exists) await ref.update({ seenAt: Date.now() });
 }
 
 const quests = [
@@ -149,7 +221,7 @@ export async function claimQuest(user, questId) {
 export async function listActivity(user, admin = false, cursor = null) {
   if (typeof admin !== "boolean" || (admin && !user.isAdmin)) throw new Error("Нет доступа к журналу администрации");
   if (cursor !== null && (typeof cursor !== "string" || !/^\d{1,20}$/.test(cursor))) throw new Error("Некорректная страница");
-  const values = [], conditions = [];
+  const values = [], conditions = ["action NOT IN ('tickMarket','ensureMarket')"];
   if (!admin) {
     values.push(user.uid, "users/" + user.uid);
     conditions.push("(actor_uid=$1 OR document_path=$2 OR old_value->>'ownerUid'=$1 OR new_value->>'ownerUid'=$1)");

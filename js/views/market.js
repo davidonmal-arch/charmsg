@@ -102,7 +102,7 @@ function buildChart(history) {
 export function mountMarket(container, nftOnly = false) {
   let side = "buy";
   let amountInputValue = "";
-  let nftFilter = "sale";
+  let nftFilter = nftOnly && new URLSearchParams(location.hash.split("?")[1]).get("filter") === "mine" ? "mine" : "sale";
 
   container.innerHTML = `
     <div class="page-head">
@@ -214,7 +214,7 @@ export function mountMarket(container, nftOnly = false) {
       <div class="row-between nft-head">
         <div>
           <div class="eyebrow">nft · коллекция</div>
-          <div class="nft-title">NFT-маркет CharMsg</div>
+          <div class="nft-title">Магазин NFT</div>
           <p class="hint">Уникальные картинки с эффектами. Создавать может админ и ранг «${rankInfo(NFT_MIN_RANK).name}» и выше, покупать — любой пользователь.</p>
         </div>
         <div class="row wrap">
@@ -225,7 +225,7 @@ export function mountMarket(container, nftOnly = false) {
       </div>
       <div class="seg nft-filters" id="nftFilters">
         <button class="seg-btn active" type="button" data-nft-filter="sale">В продаже</button>
-        <button class="seg-btn" type="button" data-nft-filter="all">Все</button>
+
         <button class="seg-btn" type="button" data-nft-filter="mine">Мои</button>
       </div>
       <div class="nft-grid" id="nftGrid"></div>
@@ -442,8 +442,9 @@ export function mountMarket(container, nftOnly = false) {
           <span class="grow ${nickClasses(owner.isAdmin, owner.nickGradient)}">${escapeHtml(owner.nick || nft.ownerNick || "Аноним")}</span>
           ${rankBadge(rankOf(owner), { compact: true })}
         </div>
-        <label class="field">ID NFT<input class="input nft-id" readonly value="${escapeHtml(nft.id)}" aria-label="ID NFT"></label>
+
         <div class="nft-actions">
+          ${!own && !nft.tradeOfferId ? '<button class="btn btn-sm" data-nft-offer="' + escapeHtml(nft.id) + '">Предложить обмен</button>' : ""}
           ${own && !nft.tradeOfferId
             ? `${nft.lastPrice > 0 ? `<p class="hint">Максимум ${fmtNum(cap, 2)} CR (3× от покупки)</p>` : ""}
                <input class="input nft-price-input" data-nft-price="${nft.id}" inputmode="decimal" placeholder="цена CR" value="${nft.forSale ? price : ""}" />
@@ -656,6 +657,7 @@ export function mountMarket(container, nftOnly = false) {
         });
         modal.close();
         nftFilter = "mine";
+        if (nftOnly) location.hash = "#/nfts?filter=mine";
         nftFilters.querySelectorAll("[data-nft-filter]").forEach((b) => b.classList.toggle("active", b.dataset.nftFilter === "mine"));
         refreshNfts();
         toast("NFT создан", "success");
@@ -763,6 +765,12 @@ export function mountMarket(container, nftOnly = false) {
   $("releaseNftsBtn").addEventListener("click", openReleaseNfts);
 
   nftGrid.addEventListener("click", async (e) => {
+    const offerButton = e.target.closest("[data-nft-offer]");
+    if (offerButton) {
+      const nft = state.nfts.find(item => item.id === offerButton.dataset.nftOffer);
+      if (nft) location.hash = "#/offers?to=" + encodeURIComponent(nft.ownerUid) + "&nft=" + encodeURIComponent(nft.id);
+      return;
+    }
     const enhanceButton = e.target.closest("[data-nft-enhance]");
     if (enhanceButton) {
       const nft = state.nfts.find((item) => item.id === enhanceButton.dataset.nftEnhance);
@@ -877,11 +885,16 @@ export function mountMarket(container, nftOnly = false) {
     if (owner?.dataset.uid) openProfileModal(owner.dataset.uid);
   });
 
+  nftFilters.querySelectorAll("[data-nft-filter]").forEach(button => button.classList.toggle("active", button.dataset.nftFilter === nftFilter));
   const unsub = onChange(refresh);
   refresh();
   if (nftOnly) {
     container.querySelector(".market-grid").style.display = "none";
-    container.querySelector(".page-head").innerHTML = '<div><h1 class="page-title">NFT</h1><a class="btn btn-sm" href="#/collections">Коллекции</a> <a class="btn btn-sm" href="#/offers">Офферы обмена</a></div>';
+    nftFilters.hidden = true;
+    container.querySelector(".nft-title").textContent = nftFilter === "mine" ? "Мои NFT" : "Магазин NFT";
+    container.querySelector(".page-head").innerHTML = '<div><h1 class="page-title">NFT</h1><nav class="section-links" aria-label="NFT"><a href="#/nfts">Магазин</a><a href="#/nfts?filter=mine">Мои NFT</a><a href="#/offers">Обмены</a><a href="#/collections">Коллекции</a></nav></div>';
+    const active = nftFilter === "mine" ? "#/nfts?filter=mine" : "#/nfts";
+    container.querySelector('.section-links a[href="' + active + '"]')?.setAttribute("aria-current", "page");
   } else container.querySelector(".nft-section").style.display = "none";
 
   return () => unsub();

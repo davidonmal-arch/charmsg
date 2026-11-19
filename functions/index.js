@@ -90,6 +90,10 @@ function listPublicChats(chats) {
 
 const actions = {
   createOffer: trading.createOffer,
+  getOffer: trading.getOffer,
+  tradeCatalog: trading.tradeCatalog,
+  offerInbox: trading.offerInbox,
+  markOfferSeen: trading.markOfferSeen,
   cancelOffer: trading.cancelOffer,
   acceptOffer: trading.acceptOffer,
   listOffers: trading.listOffers,

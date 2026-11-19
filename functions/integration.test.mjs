@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { spawn } from "node:child_process";
 import { generateVAPIDKeys } from "web-push";
 import { fileURLToPath } from "node:url";
@@ -16,8 +17,9 @@ const auth = getAuth();
 const authBase = "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:";
 const callable = "http://127.0.0.1:5002/charmsgAction";
 const origin = "https://davidonmal-arch.github.io";
+const testVapid = generateVAPIDKeys();
 const server = spawn(process.execPath, [fileURLToPath(new URL("./server.js", import.meta.url))], {
-  env: { ...process.env, GCLOUD_PROJECT: project, PORT: "5002", CHARMSG_WEB_ORIGIN: origin, CHARMSG_VAPID: JSON.stringify(generateVAPIDKeys()), CHARMSG_MODERATION_KEY: "isolated-emulator-test-key", RENDER: "true" },
+  env: { ...process.env, GCLOUD_PROJECT: project, PORT: "5002", CHARMSG_WEB_ORIGIN: origin, CHARMSG_VAPID: JSON.stringify(testVapid), CHARMSG_MODERATION_KEY: "isolated-emulator-test-key", RENDER: "true" },
   stdio: "inherit"
 });
 server.unref();
@@ -428,6 +430,22 @@ if (process.env.DATABASE_URL) {
   assert.equal((await invoke(alice, "claimQuest", "trader")).reward, 50);
   assert.equal((await invoke(alice, "claimQuest", "trader")).alreadyClaimed, true);
   assert.ok(Array.isArray(await invoke(alice, "collectionStatus")));
+  const directInput = { requestId: crypto.randomUUID(), recipientUid: uid(bob), giveIds: [], takeIds: [], giveCr: 1, takeCr: 1 };
+  const directOffer = await invoke(alice, "createOffer", directInput);
+  assert.equal((await invoke(bob, "offerInbox")).count, 1);
+  assert.equal((await invoke(bob, "getOffer", directOffer)).creatorUid, uid(alice));
+  assert.ok((await invoke(bob, "tradeCatalog")).players.some(player => player.uid === uid(alice)));
+  await invoke(bob, "markOfferSeen", directOffer);
+  assert.equal((await invoke(bob, "offerInbox")).count, 0);
+  assert.equal((await invoke(bob, "cancelOffer", directOffer)).status, "declined");
+  await offerA.update({ image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==" });
+  const expires = String(Math.floor(Date.now() / 1000) + 60);
+  const signature = createHmac("sha256", testVapid.privateKey).update(offerA.id + ":" + expires).digest("hex");
+  const preview = await fetch("http://127.0.0.1:5002/notification-image/" + offerA.id + "?expires=" + expires + "&signature=" + signature);
+  assert.equal(preview.status, 200);
+  assert.ok(preview.headers.get("content-type").startsWith("image/png"));
+  assert.equal((await fetch("http://127.0.0.1:5002/notification-image/" + offerA.id + "?expires=" + expires + "&signature=wrong")).status, 404);
+  console.log("Direct offer API checks passed: incoming notification, catalogue, recipient decline and signed image endpoint.");
   console.log("New API checks passed: offers, inventory reservation, atomic exchange, quest rewards, collections and audit visibility.");
 }
 console.log("Integration checks passed: identity, roles, paste visibility, chats, roulette, all upgrade combinations, and manual bans.");

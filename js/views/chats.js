@@ -54,6 +54,7 @@ export function mountChats(container) {
   };
 
   container.innerHTML = `
+    <div class="row wrap section-actions"><a class="btn btn-sm" href="#/pastes">Пасты и материалы</a></div>
     <section class="chats-view" id="chatsView">
       <aside class="chat-sidebar">
         <div class="sidebar-head">

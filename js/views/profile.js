@@ -60,6 +60,8 @@ export function mountProfile(container) {
       <div>
         <div class="eyebrow">личное пространство</div>
         <h1 class="page-title">Профиль</h1>
+        <div class="row wrap"><a class="btn btn-sm" href="#/history">История операций</a>
+        ${state.admin ? '<a class="btn btn-sm" href="#/admin">Управление сайтом</a>' : ""}</div>
         <p class="page-sub">Ник, аватар и описание видны другим. Ни email, ни номера телефона — учётная запись CharMsg.</p>
       </div>
       <div class="badge solid" id="profileModeBadge">аноним</div>
@@ -93,7 +95,7 @@ export function mountProfile(container) {
 
         ${communityProfileHtml}
         <div class="card card-pad" id="messagePushCard" hidden>
-          <h2 class="section-title">Уведомления о личных сообщениях</h2>
+          <h2 class="section-title">Уведомления о сообщениях и обменах</h2>
           <p class="hint" id="messagePushStatus">Включи на каждом устройстве, где хочешь получать уведомления.</p>
           <button class="btn btn-sm" id="messagePushButton" type="button" disabled>Включить уведомления</button>
         </div>

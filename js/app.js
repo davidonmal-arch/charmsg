@@ -29,6 +29,8 @@ import { mountChats } from "./views/chats.js";
 import { mountCasino } from "./views/casino.js";
 import { mountMarket, mountNfts } from "./views/market.js";
 import { mountEconomy } from "./views/economy.js";
+import { mountGames } from "./views/games.js";
+import { setupOfferInbox } from "./offer-notifications.js";
 import { mountPastes } from "./views/pastes.js";
 import { mountProfile } from "./views/profile.js";
 import { mountAdmin } from "./views/admin.js";
@@ -50,6 +52,7 @@ window.__charmsg = state;
 
 const routes = {
   chats: mountChats,
+  games: mountGames,
   casino: mountCasino,
   market: mountMarket,
   nfts: mountNfts,
@@ -73,13 +76,15 @@ function currentRoute() {
 }
 
 function updateNav() {
-  const route = state.route;
+  const route = ["games", "casino", "market", "quests"].includes(state.route) ? "games"
+    : ["nfts", "offers", "collections"].includes(state.route) ? "nfts"
+      : ["profile", "history", "admin", "logs"].includes(state.route) ? "profile" : "chats";
   const banned = !!state.profile?.banned;
   document.body.classList.toggle("is-banned", banned);
   document.querySelectorAll(".nav-link").forEach((a) => a.classList.toggle("active", a.dataset.route === route));
   document.querySelectorAll(".tabbar a").forEach((a) => a.classList.toggle("active", a.dataset.route === route));
-  navAdmin.hidden = !state.admin || banned;
-  tabAdmin.hidden = !state.admin || banned;
+  if (navAdmin) navAdmin.hidden = !state.admin || banned;
+  if (tabAdmin) tabAdmin.hidden = !state.admin || banned;
   adminEntryBtn.hidden = state.admin || banned;
 }
 
@@ -334,7 +339,7 @@ async function startDefaultPush(uid) {
   localStorage.setItem(promptKey, "1");
   const modal = openModal(`
     <button class="modal-close" data-close aria-label="Закрыть">×</button>
-    <h3 class="modal-title">Уведомления о личных сообщениях</h3>
+    <h3 class="modal-title">Уведомления о сообщениях и обменах</h3>
     <p class="modal-sub">Разреши уведомления, чтобы получать их, даже когда CharMsg закрыт.</p>
     <div class="modal-actions">
       <button class="btn btn-ghost" type="button" data-skip-push>Не сейчас</button>
@@ -429,6 +434,7 @@ async function boot() {
   }
 
   function subscribeData() {
+    subscriptions.push(setupOfferInbox());
     subscriptions.push(subscribeEvent((event) => {
       state.event = event;
       renderCommunityEvent();
