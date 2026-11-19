@@ -1,5 +1,5 @@
-import { state, onChange, userOf } from "../state.js";
-import { openProfileModal } from "../ui.js";
+import { state, onChange, userOf } from "../state.js?v=instant-20261119";
+import { openProfileModal } from "../ui.js?v=instant-20261119";
 import {
   CASINO_MAX_BET,
   CASINO_MIN_BET,
@@ -13,8 +13,8 @@ import {
   playClicker,
   rouletteColor,
   spinRoulette
-} from "../store.js";
-import { clamp, escapeHtml, fmtNum, fmtRelative, nickClasses, nickWithClan, safeUrl, toast } from "../util.js";
+} from "../store.js?v=instant-20261119";
+import { clamp, escapeHtml, fmtNum, fmtRelative, nickClasses, nickWithClan, safeUrl, toast } from "../util.js?v=instant-20261119";
 
 const SEGMENTS = 37;
 const SEG_ANGLE = 360 / SEGMENTS;

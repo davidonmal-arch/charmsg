@@ -1,8 +1,8 @@
-import { runAction } from "../db.js";
-import { state } from "../state.js";
-import { effectClass } from "../store.js";
-import { openModal, confirmDialog } from "../ui.js";
-import { escapeHtml as esc, fmtNum, safeUrl, toast } from "../util.js";
+import { runAction } from "../db.js?v=instant-20261119";
+import { state } from "../state.js?v=instant-20261119";
+import { effectClass } from "../store.js?v=instant-20261119";
+import { openModal, confirmDialog } from "../ui.js?v=instant-20261119";
+import { escapeHtml as esc, fmtNum, safeUrl, toast } from "../util.js?v=instant-20261119";
 
 const tabs = { offers: "Обмены", collections: "Коллекции", quests: "Квесты", history: "История операций", logs: "Логи администрации" };
 const statuses = { open: "Ждёт ответа", accepted: "Обмен завершён", cancelled: "Отменён", declined: "Отклонён" };
@@ -13,6 +13,7 @@ const side = (items, coins) => [coins ? fmtNum(coins) + " CR" : "", ...items.map
 
 export function mountEconomy(container) {
   const route = state.route;
+  const pendingOffers = new Set();
   let alive = true, next = null, mode = "inbox", offers = [], entries = [], generation = 0, timer;
   container.innerHTML = '<div class="page-head"><h1 class="page-title">' + tabs[route] + '</h1><button class="btn btn-sm" id="refreshEconomy">Обновить</button></div>'
     + '<nav class="section-links" aria-label="Раздел">'
@@ -35,10 +36,10 @@ export function mountEconomy(container) {
       const incoming = offer.recipientUid === state.uid;
       return '<article class="card card-pad stack trade-offer" id="offer-' + esc(offer.id) + '"><div class="row-between"><div><b>'
         + (mine ? "Твоё предложение" : esc(offer.creatorNick) + " предлагает обмен")
-        + '</b><p class="hint">' + (mine ? esc(offer.recipientNick || "Общий рынок") + " · " : "") + esc(date(offer.createdAt)) + '</p></div><span class="badge">' + (statuses[offer.status] || "Закрыт") + '</span></div>'
+        + '</b><p class="hint">' + (mine ? esc(offer.recipientNick || "Общий рынок") + " · " : "") + esc(date(offer.createdAt)) + '</p></div><span class="badge">' + (pendingOffers.has(offer.id) ? "Подтверждаем…" : statuses[offer.status] || "Закрыт") + '</span></div>'
         + '<div class="offer-sides"><section><h2 class="offer-side-title">' + (mine ? "Ты отдаёшь" : "Ты получишь") + '</h2>' + cards(offer.give, offer.giveCr)
         + '</section><section><h2 class="offer-side-title">' + (mine ? "Хочешь получить" : "Ты отдашь") + '</h2>' + cards(offer.take, offer.takeCr) + '</section></div>'
-        + (offer.status === "open" ? '<div class="row wrap">'
+        + (offer.status === "open" && !pendingOffers.has(offer.id) ? '<div class="row wrap">'
           + (!mine ? '<button class="btn btn-primary" data-accept="' + esc(offer.id) + '">Принять обмен</button>' : "")
           + (mine || incoming || state.admin ? '<button class="btn" data-cancel="' + esc(offer.id) + '">' + (incoming && !mine ? "Отклонить" : "Отменить предложение") + '</button>' : "") + '</div>' : "")
         + '</article>';
@@ -178,6 +179,7 @@ export function mountEconomy(container) {
   const click = async event => {
     const button = event.target.closest("button");
     if (!button || button.disabled) return;
+    let pendingId;
     try {
       if (button.id === "newOffer") return await openOffer();
       if (button.id === "refreshEconomy") return await load();
@@ -185,19 +187,23 @@ export function mountEconomy(container) {
       if (button.dataset.accept) {
         const offer = offers.find(offer => offer.id === button.dataset.accept);
         if (!offer || !await confirmDialog("Подтвердить обмен?", "Ты отдаёшь " + side(offer.take, offer.takeCr) + ". Получаешь " + side(offer.give, offer.giveCr) + ".", "Обменять")) return;
-        button.disabled = true; await runAction("acceptOffer", offer.id); toast("Обмен завершён", "success");
+        button.disabled = true; pendingId = offer.id; pendingOffers.add(pendingId); renderOffers(); await runAction("acceptOffer", offer.id); toast("Обмен завершён", "success");
       } else if (button.dataset.cancel) {
         const target = offers.find(offer => offer.id === button.dataset.cancel);
         const decline = target?.recipientUid === state.uid;
         if (!await confirmDialog(decline ? "Отклонить обмен?" : "Отменить предложение?", "Предметы и CR вернутся автору.", decline ? "Отклонить" : "Отменить")) return;
-        button.disabled = true; await runAction("cancelOffer", button.dataset.cancel);
+        button.disabled = true; pendingId = button.dataset.cancel; pendingOffers.add(pendingId); renderOffers(); await runAction("cancelOffer", pendingId);
       } else if (button.dataset.claim) {
-        button.disabled = true; await runAction("claimQuest", button.dataset.claim); toast("Награда получена", "success");
+        button.disabled = true; button.textContent = "Забираем…"; await runAction("claimQuest", button.dataset.claim); toast("Награда получена", "success");
       } else return;
       await load();
       window.dispatchEvent(new Event("charmsg:offers-changed"));
-    } catch (failure) { if (alive) toast(failure.message, "error"); }
-    finally { button.disabled = false; }
+    } catch (failure) { if (alive) { toast(failure.message, "error"); if (pendingId) await load(); } }
+    finally {
+      if (pendingId) { pendingOffers.delete(pendingId); if (alive) renderOffers(); }
+      button.disabled = false;
+      if (button.dataset.claim && button.isConnected) button.textContent = "Забрать награду";
+    }
   };
   container.addEventListener("click", click);
   container.querySelector("#offerMode")?.addEventListener("change", event => { mode = event.target.value; load(); });

@@ -1,7 +1,7 @@
-import { runAction } from "../db.js";
-import { state } from "../state.js";
-import { openModal, openProfileModal } from "../ui.js";
-import { escapeHtml, nickWithClan, toast } from "../util.js";
+import { runAction } from "../db.js?v=instant-20261119";
+import { state } from "../state.js?v=instant-20261119";
+import { openModal, openProfileModal } from "../ui.js?v=instant-20261119";
+import { escapeHtml, nickWithClan, toast } from "../util.js?v=instant-20261119";
 
 const themes = { plum: "Слива", ocean: "Океан", emerald: "Изумруд", amber: "Янтарь" };
 const businessNames = { shop: "Магазин", factory: "Завод", company: "Компания" };

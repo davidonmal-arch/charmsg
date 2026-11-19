@@ -1,4 +1,4 @@
-import { getAdminSession } from "./store.js";
+import { getAdminSession } from "./store.js?v=instant-20261119";
 
 export const state = {
   uid: null,

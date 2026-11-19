@@ -1,4 +1,4 @@
-import { auth, runAction } from "./db.js";
+import { auth, runAction } from "./db.js?v=instant-20261119";
 
 const reference = (parent, segments, kind) => ({
   path: [parent?.path, ...segments].filter(Boolean).join("/"),
@@ -15,7 +15,7 @@ const cachedReads = new WeakMap();
 async function request(operation, ref, extra) {
   const uid = auth.currentUser?.uid;
   const saved = cachedReads.get(ref);
-  const previous = operation === "get" && saved?.uid === uid ? saved.value : null;
+  const previous = operation === "get" && saved && saved.uid === uid ? saved.value : null;
   const value = await runAction("clientData", operation, {
     path: ref.path, constraints: ref.constraints,
     ...(previous ? { version: previous.version } : {}), ...extra
@@ -48,7 +48,12 @@ export function onSnapshot(ref, ...args) {
   let stopped = false;
   let timer;
   let previous;
+  let busy = false, queued = false;
   const poll = async () => {
+    if (stopped) return;
+    if (busy) { queued = true; return; }
+    clearTimeout(timer);
+    busy = true;
     try {
       const result = await (ref.kind === "document" ? getDoc(ref) : getDocs(ref));
       const serialized = JSON.stringify(ref.kind === "document" ? result.data() : result.docs.map(doc => [doc.id, doc.data()]));
@@ -57,8 +62,12 @@ export function onSnapshot(ref, ...args) {
         callback(result);
       }
     } catch (error) { if (!stopped) onError?.(error); }
-    if (!stopped) timer = setTimeout(poll, document.hidden ? 60_000 : 15_000);
+    busy = false;
+    if (queued && !stopped) { queued = false; poll(); }
+    else if (!stopped) timer = setTimeout(poll, document.hidden ? 60_000 : 15_000);
   };
+  const invalidate = event => { if (event.detail?.collections?.includes(ref.path.split("/")[0])) poll(); };
+  window.addEventListener("charmsg:data-change", invalidate);
   poll();
-  return () => { stopped = true; clearTimeout(timer); };
+  return () => { stopped = true; clearTimeout(timer); window.removeEventListener("charmsg:data-change", invalidate); };
 }

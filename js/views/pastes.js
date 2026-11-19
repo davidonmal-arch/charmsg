@@ -1,4 +1,4 @@
-import { state, onChange, userOf } from "../state.js";
+import { state, onChange, userOf } from "../state.js?v=instant-20261119";
 import {
   canEditPaste,
   canViewPaste,
@@ -9,8 +9,8 @@ import {
   savePaste,
   setPasteEditors,
   setPastePublished
-} from "../store.js";
-import { confirmDialog, openModal } from "../ui.js";
+} from "../store.js?v=instant-20261119";
+import { confirmDialog, openModal } from "../ui.js?v=instant-20261119";
 import {
   RANKS,
   avatarData,
@@ -24,7 +24,7 @@ import {
   safeUrl,
   toast,
   verifiedBadge
-} from "../util.js";
+} from "../util.js?v=instant-20261119";
 
 const FILTERS = [
   { key: "all", label: "Все" },

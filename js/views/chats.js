@@ -1,4 +1,4 @@
-import { openPlayerSearch } from "./community.js";
+import { openPlayerSearch } from "./community.js?v=instant-20261119";
 import {
   DAY,
   canAccessChat,
@@ -10,9 +10,9 @@ import {
   subscribeMessages,
   updateChatTtl,
   createPublicChat
-} from "../store.js";
-import { state, onChange, userOf } from "../state.js";
-import { confirmDialog, openModal, openProfileModal } from "../ui.js";
+} from "../store.js?v=instant-20261119";
+import { state, onChange, userOf } from "../state.js?v=instant-20261119";
+import { confirmDialog, openModal, openProfileModal } from "../ui.js?v=instant-20261119";
 import {
   avatarData,
   escapeHtml,
@@ -31,7 +31,7 @@ import {
   ttlShort,
   toast,
   verifiedBadge
-} from "../util.js";
+} from "../util.js?v=instant-20261119";
 
 const TTL_OPTIONS = [
   { value: DAY, label: "1 день", hint: "Сообщения исчезают через 24 часа" },

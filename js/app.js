@@ -1,6 +1,6 @@
-import { runAction } from "./db.js";
-import { setTheme } from "./views/community.js";
-import { enableMessagePush, optOutMessagePush, setupDefaultMessagePush } from "./push.js";
+import { runAction } from "./db.js?v=instant-20261119";
+import { setTheme } from "./views/community.js?v=instant-20261119";
+import { enableMessagePush, optOutMessagePush, setupDefaultMessagePush } from "./push.js?v=instant-20261119";
 import {
   banForScreenshot,
   checkAccess,
@@ -21,20 +21,20 @@ import {
   tickMarket,
   verifyAdminSession,
   createProfile
-} from "./store.js";
-import { state, notify, onChange } from "./state.js";
-import { openAdminLoginModal, openModal, openPlayerLoginModal } from "./ui.js";
-import { avatarData, escapeHtml, fmtNum, nickHtml, toast } from "./util.js";
-import { mountChats } from "./views/chats.js";
-import { mountCasino } from "./views/casino.js";
-import { mountMarket, mountNfts } from "./views/market.js?v=upgrade-fix-20261119";
-import { mountEconomy } from "./views/economy.js";
-import { mountGames } from "./views/games.js";
-import { setupOfferInbox } from "./offer-notifications.js";
-import { mountPastes } from "./views/pastes.js";
-import { mountProfile } from "./views/profile.js";
-import { mountAdmin } from "./views/admin.js";
-import { mountBan } from "./views/ban.js";
+} from "./store.js?v=instant-20261119";
+import { state, notify, onChange } from "./state.js?v=instant-20261119";
+import { openAdminLoginModal, openModal, openPlayerLoginModal } from "./ui.js?v=instant-20261119";
+import { avatarData, escapeHtml, fmtNum, nickHtml, toast } from "./util.js?v=instant-20261119";
+import { mountChats } from "./views/chats.js?v=instant-20261119";
+import { mountCasino } from "./views/casino.js?v=instant-20261119";
+import { mountMarket, mountNfts } from "./views/market.js?v=instant-20261119";
+import { mountEconomy } from "./views/economy.js?v=instant-20261119";
+import { mountGames } from "./views/games.js?v=instant-20261119";
+import { setupOfferInbox } from "./offer-notifications.js?v=instant-20261119";
+import { mountPastes } from "./views/pastes.js?v=instant-20261119";
+import { mountProfile } from "./views/profile.js?v=instant-20261119";
+import { mountAdmin } from "./views/admin.js?v=instant-20261119";
+import { mountBan } from "./views/ban.js?v=instant-20261119";
 
 setTheme(localStorage.getItem("charmsg_theme"));
 

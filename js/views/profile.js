@@ -1,8 +1,8 @@
-import { communityProfileHtml, wireCommunityProfile } from "./community.js";
-import { currentPushSubscription, disableMessagePush, enableMessagePush, prepareMessagePush, pushSupported } from "../push.js";
-import { state, onChange } from "../state.js";
-import { openAdminLoginModal, openPlayerLoginModal, confirmDialog, profileNftHtml } from "../ui.js";
-import { adminLogout, canCreateNft, linkedPlayerLogin, signOutPlayer, subscribeNft, updateProfile } from "../store.js";
+import { communityProfileHtml, wireCommunityProfile } from "./community.js?v=instant-20261119";
+import { currentPushSubscription, disableMessagePush, enableMessagePush, prepareMessagePush, pushSupported } from "../push.js?v=instant-20261119";
+import { state, onChange } from "../state.js?v=instant-20261119";
+import { openAdminLoginModal, openPlayerLoginModal, confirmDialog, profileNftHtml } from "../ui.js?v=instant-20261119";
+import { adminLogout, canCreateNft, linkedPlayerLogin, signOutPlayer, subscribeNft, updateProfile } from "../store.js?v=instant-20261119";
 import {
   MAX_RANK,
   NFT_MIN_RANK,
@@ -18,7 +18,7 @@ import {
   safeUrl,
   toast,
   verifiedBadge
-} from "../util.js";
+} from "../util.js?v=instant-20261119";
 
 function cropAvatar(file) {
   return new Promise((resolve, reject) => {

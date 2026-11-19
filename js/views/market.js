@@ -1,5 +1,5 @@
-import { state, onChange, userOf } from "../state.js";
-import { confirmDialog, openModal, openProfileModal } from "../ui.js";
+import { state, onChange, userOf } from "../state.js?v=instant-20261119";
+import { confirmDialog, openModal, openProfileModal } from "../ui.js?v=instant-20261119";
 import {
   NFT_EFFECTS,
   buyNft,
@@ -15,7 +15,7 @@ import {
   setFeaturedNft,
   setNftSale,
   trade
-} from "../store.js";
+} from "../store.js?v=instant-20261119";
 import {
   NFT_MIN_RANK,
   avatarData,
@@ -33,7 +33,7 @@ import {
   rankOf,
   safeUrl,
   toast
-} from "../util.js";
+} from "../util.js?v=instant-20261119";
 
 function priceFmt(n) {
   const v = Number(n) || 0;
@@ -100,6 +100,8 @@ function buildChart(history) {
 }
 
 export function mountMarket(container, nftOnly = false) {
+  let alive = true;
+  const pendingNfts = new Map();
   let side = "buy";
   let amountInputValue = "";
   let nftFilter = nftOnly && new URLSearchParams(location.hash.split("?")[1]).get("filter") === "mine" ? "mine" : "sale";
@@ -416,9 +418,28 @@ export function mountMarket(container, nftOnly = false) {
     return NFT_EFFECTS.find((e) => e.key === key)?.name || "Без эффекта";
   }
 
+  async function nftOperation(id, kind, perform, confirmed) {
+    if (pendingNfts.has(id)) throw new Error("Дождись завершения операции с этим NFT");
+    const pending = { kind, confirmed, syncing: false };
+    pendingNfts.set(id, pending);
+    if (alive) refreshNfts();
+    try {
+      const result = await perform();
+      pending.syncing = true;
+      if (alive) refreshNfts();
+      return result;
+    } catch (error) {
+      pendingNfts.delete(id);
+      if (alive) refreshNfts();
+      window.dispatchEvent(new CustomEvent("charmsg:data-change", { detail: { collections: ["nfts", "users"] } }));
+      throw error;
+    }
+  }
+
   function nftCardHtml(nft) {
     const image = safeUrl(nft.image || "");
     const own = nft.ownerUid === state.uid;
+    const pending = pendingNfts.get(nft.id);
     const owner = userOf(nft.ownerUid) || { nick: nft.ownerNick || "Аноним", avatar: "" };
     const price = Number(nft.price) || 0;
     const cap = nftResaleLimit(nft);
@@ -444,8 +465,9 @@ export function mountMarket(container, nftOnly = false) {
         </div>
 
         <div class="nft-actions">
-          ${!own && !nft.tradeOfferId ? '<button class="btn btn-sm" data-nft-offer="' + escapeHtml(nft.id) + '">Предложить обмен</button>' : ""}
-          ${own && !nft.tradeOfferId
+          ${pending ? '<button class="btn btn-sm" disabled aria-busy="true">' + (pending.kind === "enhance" ? "Улучшается…" : pending.kind === "buy" ? "Покупается…" : "Сохраняется…") + "</button>" : ""}
+          ${!pending && !own && !nft.tradeOfferId ? '<button class="btn btn-sm" data-nft-offer="' + escapeHtml(nft.id) + '">Предложить обмен</button>' : ""}
+          ${pending ? "" : own && !nft.tradeOfferId
             ? `${nft.lastPrice > 0 ? `<p class="hint">Максимум ${fmtNum(cap, 2)} CR (3× от покупки)</p>` : ""}
                <input class="input nft-price-input" data-nft-price="${nft.id}" inputmode="decimal" placeholder="цена CR" value="${nft.forSale ? price : ""}" />
                <button class="btn btn-sm btn-primary" data-nft-list="${nft.id}" type="button">${nft.forSale ? "Обновить" : "Выставить"}</button>
@@ -464,7 +486,13 @@ export function mountMarket(container, nftOnly = false) {
 
   function refreshNfts() {
     const all = state.nfts || [];
+    for (const [id, pending] of pendingNfts) {
+      if (pending.syncing && (!all.some(nft => nft.id === id) || pending.confirmed(all.find(nft => nft.id === id)))) pendingNfts.delete(id);
+    }
+    nftGrid.setAttribute("aria-busy", String(pendingNfts.size > 0));
     const list = all.filter((nft) => {
+      const pending = pendingNfts.get(nft.id);
+      if (pending?.kind === "delete" || (["buy", "unlist"].includes(pending?.kind) && nftFilter === "sale") || (pending?.kind === "gift" && nftFilter === "mine")) return false;
       if (nftFilter === "sale") return !!nft.forSale && Number(nft.price) <= nftResaleLimit(nft);
       if (nftFilter === "mine") return nft.ownerUid === state.uid;
       return true;
@@ -477,6 +505,7 @@ export function mountMarket(container, nftOnly = false) {
     createNftBtn.disabled = !allowed;
     createNftBtn.title = allowed ? "Создать свой NFT" : `Нужен ранг «${rankInfo(NFT_MIN_RANK).name}» или админ`;
     if (!list.length) {
+      if (pendingNfts.size) { nftGrid.innerHTML = '<div class="empty" role="status"><p>Оформляем операцию…</p></div>'; return; }
       nftGrid.innerHTML = `<div class="empty" style="min-height:170px"><p>${nftFilter === "mine" ? "У вас пока нет NFT. Создайте первый или купите на маркете." : "Здесь пока нет NFT. Первый появится, как только кто-то выставит его на продажу."}</p></div>`;
       return;
     }
@@ -497,7 +526,7 @@ export function mountMarket(container, nftOnly = false) {
     );
     if (!ok) return;
     try {
-      const result = await buyNft(nftId, state.profile);
+      const result = await nftOperation(nftId, "buy", () => buyNft(nftId, state.profile), nft => nft?.ownerUid === state.uid && !nft.forSale);
       toast(`NFT «${result.name}» куплен за ${fmtNum(result.price, 2)} CR`, "success");
     } catch (err) {
       toast(err.message || "Не удалось купить NFT", "error");
@@ -779,7 +808,7 @@ export function mountMarket(container, nftOnly = false) {
       if (!ok) return;
       enhanceButton.disabled = true;
       try {
-        const result = await enhanceNft(nft.id);
+        const result = await nftOperation(nft.id, "enhance", () => enhanceNft(nft.id), nft => !!nft?.upgraded);
         toast(`Улучшение применено: #${result.number}, ${effectName(result.effect)}`, "success");
       } catch (error) {
         toast(error.message, "error");
@@ -811,7 +840,7 @@ export function mountMarket(container, nftOnly = false) {
         event.preventDefault();
         submit.disabled = true;
         try {
-          const result = await giftNft(nft.id, form.elements.recipient.value);
+          const result = await nftOperation(nft.id, "gift", () => giftNft(nft.id, form.elements.recipient.value), item => item?.ownerUid !== state.uid);
           modal.close();
           toast(`NFT передан игроку ${result.recipientNick}`, "success");
         } catch (error) {
@@ -851,7 +880,7 @@ export function mountMarket(container, nftOnly = false) {
         return;
       }
       try {
-        await setNftSale(id, state.profile, price);
+        await nftOperation(id, "list", () => setNftSale(id, state.profile, price), nft => nft?.forSale && Number(nft.price) === Math.min(1_000_000_000, price));
         toast(`NFT выставлен за ${fmtNum(price, 2)} CR`, "success");
       } catch (err) {
         toast(err.message || "Не удалось выставить NFT", "error");
@@ -861,7 +890,7 @@ export function mountMarket(container, nftOnly = false) {
     const unlistBtn = e.target.closest("[data-nft-unlist]");
     if (unlistBtn) {
       try {
-        await setNftSale(unlistBtn.dataset.nftUnlist, state.profile, 0);
+        await nftOperation(unlistBtn.dataset.nftUnlist, "unlist", () => setNftSale(unlistBtn.dataset.nftUnlist, state.profile, 0), nft => !nft?.forSale);
         toast("NFT снят с продажи", "success");
       } catch (err) {
         toast(err.message || "Не удалось снять NFT", "error");
@@ -874,7 +903,7 @@ export function mountMarket(container, nftOnly = false) {
       const ok = await confirmDialog("Удалить NFT?", `«${nft?.name || "NFT"}» исчезнет из коллекции без возможности восстановления.`, "Удалить", true);
       if (!ok) return;
       try {
-        await deleteNft(deleteBtn.dataset.nftDelete, state.profile);
+        await nftOperation(deleteBtn.dataset.nftDelete, "delete", () => deleteNft(deleteBtn.dataset.nftDelete, state.profile), nft => !nft);
         toast("NFT удалён", "success");
       } catch (err) {
         toast(err.message || "Не удалось удалить NFT", "error");
@@ -897,7 +926,7 @@ export function mountMarket(container, nftOnly = false) {
     container.querySelector('.section-links a[href="' + active + '"]')?.setAttribute("aria-current", "page");
   } else container.querySelector(".nft-section").style.display = "none";
 
-  return () => unsub();
+  return () => { alive = false; unsub(); };
 }
 
 export const mountNfts = container => mountMarket(container, true);

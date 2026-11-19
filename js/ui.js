@@ -9,9 +9,9 @@ import {
   safeUrl,
   toast,
   verifiedBadge
-} from "./util.js";
-import { state, userOf } from "./state.js";
-import { adminLogin, effectClass, fetchUser, nftTitle, openDM, subscribeNft, savePlayerLogin, signInPlayer } from "./store.js";
+} from "./util.js?v=instant-20261119";
+import { state, userOf } from "./state.js?v=instant-20261119";
+import { adminLogin, effectClass, fetchUser, nftTitle, openDM, subscribeNft, savePlayerLogin, signInPlayer } from "./store.js?v=instant-20261119";
 
 const root = () => document.getElementById("modalRoot");
 

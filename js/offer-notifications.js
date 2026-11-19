@@ -1,6 +1,6 @@
-import { runAction } from "./db.js";
-import { state } from "./state.js";
-import { escapeHtml, safeUrl, fmtNum } from "./util.js";
+import { runAction } from "./db.js?v=instant-20261119";
+import { state } from "./state.js?v=instant-20261119";
+import { escapeHtml, safeUrl, fmtNum } from "./util.js?v=instant-20261119";
 
 export function setupOfferInbox() {
   navigator.serviceWorker?.getRegistration().then(registration => registration?.update()).catch(() => {});

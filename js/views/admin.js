@@ -1,6 +1,6 @@
-import { runAction } from "../db.js";
-import { state, onChange } from "../state.js";
-import { confirmDialog, openModal } from "../ui.js";
+import { runAction } from "../db.js?v=instant-20261119";
+import { state, onChange } from "../state.js?v=instant-20261119";
+import { confirmDialog, openModal } from "../ui.js?v=instant-20261119";
 import {
   ADMIN_LOGIN,
   BAN_IMAGE,
@@ -24,7 +24,7 @@ import {
   adminSetVerified,
   adminStats,
   deleteChat
-} from "../store.js";
+} from "../store.js?v=instant-20261119";
 import {
   RANKS,
   avatarData,
@@ -40,7 +40,7 @@ import {
   ttlShort,
   toast,
   verifiedBadge
-} from "../util.js";
+} from "../util.js?v=instant-20261119";
 
 function loginHtml() {
   return `

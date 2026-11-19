@@ -1,5 +1,5 @@
-import { clearQuota, reportQuota } from "./quota.js";
-import { auth, adminAuth, EmailAuthProvider, linkWithCredential, signInAnonymously, signInWithEmailAndPassword, signOut, runAction } from "./db.js";
+import { clearQuota, reportQuota } from "./quota.js?v=instant-20261119";
+import { auth, adminAuth, EmailAuthProvider, linkWithCredential, signInAnonymously, signInWithEmailAndPassword, signOut, runAction } from "./db.js?v=instant-20261119";
 import {
   db,
   collection,
@@ -15,7 +15,7 @@ import {
   orderBy,
   limit,
   getCountFromServer
-} from "./db.js";
+} from "./db.js?v=instant-20261119";
 import {
   MAX_RANK,
   NFT_MIN_RANK,
@@ -23,7 +23,7 @@ import {
   clamp,
   rankOf,
   toast
-} from "./util.js";
+} from "./util.js?v=instant-20261119";
 
 export const DAY = 86_400_000;
 export const ADMIN_UID = "admin_farnaz";

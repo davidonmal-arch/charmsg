@@ -1,5 +1,5 @@
-import { claimSetupBonus } from "./store.js";
-import { auth, runAction } from "./db.js";
+import { claimSetupBonus } from "./store.js?v=instant-20261119";
+import { auth, runAction } from "./db.js?v=instant-20261119";
 
 export const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 const scope = new URL("../", import.meta.url).href;

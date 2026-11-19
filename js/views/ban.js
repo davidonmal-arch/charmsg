@@ -1,5 +1,5 @@
-import { state } from "../state.js";
-import { escapeHtml, fmtDateTime, fmtDuration, plural, safeUrl } from "../util.js";
+import { state } from "../state.js?v=instant-20261119";
+import { escapeHtml, fmtDateTime, fmtDuration, plural, safeUrl } from "../util.js?v=instant-20261119";
 
 export function mountBan(container) {
   const profile = state.profile || {};
