@@ -3,6 +3,7 @@ import { getFirestore as firebaseDatabase } from "firebase-admin/firestore";
 import { Pool, neonConfig } from "@neondatabase/serverless";
 import WebSocket from "ws";
 import { HttpsProxyAgent } from "https-proxy-agent";
+import { activityContext } from "./activity.js";
 
 neonConfig.webSocketConstructor = process.env.HTTPS_PROXY
   ? class extends WebSocket {
@@ -22,9 +23,14 @@ export function getFirestore() {
   return database;
 }
 
-function connection(sql) {
+function connection(sql, inTransaction = false) {
   return {
-    query: (...args) => sql.query(...args),
+    query: (text, values) => {
+      if (!inTransaction && activityContext.getStore() && /^\s*(INSERT|UPDATE|DELETE)\b/i.test(text)) {
+        return connection(sql).transaction(client => client.query(text, values));
+      }
+      return sql.query(text, values);
+    },
     async transaction(callback) {
       const client = await sql.connect();
       const onError = () => {};
@@ -33,7 +39,9 @@ function connection(sql) {
         await client.query("BEGIN");
         await client.query("SET LOCAL statement_timeout = '20s'");
         await client.query("SET LOCAL idle_in_transaction_session_timeout = '30s'");
-        const result = await callback(connection(client));
+        const actor = activityContext.getStore();
+        if (actor) await client.query("SELECT set_config('charmsg.actor',$1,true), set_config('charmsg.action',$2,true)", [actor.uid, actor.action]);
+        const result = await callback(connection(client, true));
         await client.query("COMMIT");
         return result;
       } catch (error) {

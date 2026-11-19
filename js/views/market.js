@@ -99,7 +99,7 @@ function buildChart(history) {
   <div class="chart-legend"><span>${escapeHtml(priceFmt(min))} · минимум</span><span>${escapeHtml(priceFmt(max))} · максимум</span></div>`;
 }
 
-export function mountMarket(container) {
+export function mountMarket(container, nftOnly = false) {
   let side = "buy";
   let amountInputValue = "";
   let nftFilter = "sale";
@@ -432,6 +432,7 @@ export function mountMarket(container) {
       <div class="nft-body">
         <div class="nft-card-top">
           <h3>${escapeHtml(nftTitle(nft))}</h3>
+          ${nft.tradeOfferId ? '<span class="badge">В оффере</span>' : ""}
           ${nft.forSale ? '<span class="badge solid">продаётся</span>' : '<span class="badge">в коллекции</span>'}
         </div>
         ${nft.seriesId ? `<p class="hint">${nft.upgraded ? "Улучшенная копия" : `Базовая копия · улучшение ${fmtNum(nft.upgradePrice)} CR`}</p>` : ""}
@@ -441,8 +442,9 @@ export function mountMarket(container) {
           <span class="grow ${nickClasses(owner.isAdmin, owner.nickGradient)}">${escapeHtml(owner.nick || nft.ownerNick || "Аноним")}</span>
           ${rankBadge(rankOf(owner), { compact: true })}
         </div>
+        <label class="field">ID NFT<input class="input nft-id" readonly value="${escapeHtml(nft.id)}" aria-label="ID NFT"></label>
         <div class="nft-actions">
-          ${own
+          ${own && !nft.tradeOfferId
             ? `${nft.lastPrice > 0 ? `<p class="hint">Максимум ${fmtNum(cap, 2)} CR (3× от покупки)</p>` : ""}
                <input class="input nft-price-input" data-nft-price="${nft.id}" inputmode="decimal" placeholder="цена CR" value="${nft.forSale ? price : ""}" />
                <button class="btn btn-sm btn-primary" data-nft-list="${nft.id}" type="button">${nft.forSale ? "Обновить" : "Выставить"}</button>
@@ -877,6 +879,12 @@ export function mountMarket(container) {
 
   const unsub = onChange(refresh);
   refresh();
+  if (nftOnly) {
+    container.querySelector(".market-grid").style.display = "none";
+    container.querySelector(".page-head").innerHTML = '<div><h1 class="page-title">NFT</h1><a class="btn btn-sm" href="#/collections">Коллекции</a> <a class="btn btn-sm" href="#/offers">Офферы обмена</a></div>';
+  } else container.querySelector(".nft-section").style.display = "none";
 
   return () => unsub();
 }
+
+export const mountNfts = container => mountMarket(container, true);

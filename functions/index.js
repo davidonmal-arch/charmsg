@@ -1,5 +1,7 @@
 import * as community from "./community.js";
 import { clientData } from "./client-data.js";
+import * as trading from "./trading.js";
+import { withActivity } from "./activity.js";
 import { enhanceNft, releaseNfts } from "./releases.js";
 import { browserSignals, checkNetworkBan, rememberSignals, updatePlayerBan } from "./network-ban.js";
 import { getAuth } from "firebase-admin/auth";
@@ -87,6 +89,18 @@ function listPublicChats(chats) {
 }
 
 const actions = {
+  createOffer: trading.createOffer,
+  cancelOffer: trading.cancelOffer,
+  acceptOffer: trading.acceptOffer,
+  listOffers: trading.listOffers,
+  questStatus: trading.questStatus,
+  claimQuest: trading.claimQuest,
+  listActivity: trading.listActivity,
+  collectionStatus: trading.collectionStatus,
+  async tradeInventory(user) {
+    const inventory = await db().collection("nfts").where("ownerUid", "==", user.uid).get();
+    return inventory.docs.filter(doc => !doc.data().tradeOfferId).map(doc => ({ id: doc.id, name: doc.data().name || "NFT" }));
+  },
   clientData,
   async adminSetPrice(user, price) {
     if (!user.isAdmin || !Number.isFinite(price) || price < 1) throw denied();
@@ -371,7 +385,7 @@ export const charmsgAction = onCall({
     if (profile?.banned && !ownBanProfile && !["checkAccess", "expireBanIfNeeded"].includes(action)) throw denied();
     const signals = isAdmin(auth) ? [] : browserSignals(rawRequest, request.browserId);
     if (!profile?.banned) await checkNetworkBan(signals);
-    const result = await actions[action](authenticatedProfile(auth, profile), ...args);
+    const result = await withActivity(auth.uid, action, () => actions[action](authenticatedProfile(auth, profile), ...args));
     if ((action === "checkAccess" && profile && !profile.banned) || action === "createProfile") {
       await rememberSignals(auth.uid, signals).catch((error) => console.warn("Moderation signal save failed", error.code || "unknown"));
     }

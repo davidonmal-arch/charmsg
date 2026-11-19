@@ -1,0 +1,67 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { getFirestore } from "./database.js";
+import { withActivity } from "./activity.js";
+import * as trades from "./trading.js";
+
+assert.ok(process.env.NEON_BRANCH?.startsWith("migration-test-"), "Use a disposable test branch");
+const db = getFirestore(), suffix = crypto.randomUUID().replaceAll("-", "");
+const alice = { uid: "offer_alice_" + suffix, nick: "Alice", isAdmin: false };
+const bob = { uid: "offer_bob_" + suffix, nick: "Bob", isAdmin: false };
+const eve = { uid: "offer_eve_" + suffix, nick: "Eve", isAdmin: false };
+const admin = { uid: "offer_admin_" + suffix, nick: "Admin", isAdmin: true };
+const paths = [];
+async function seed(path, data) { paths.push(path); await db.doc(path).create(data); return path.split("/").at(-1); }
+const invoke = (user, action, ...args) => withActivity(user.uid, action, () => trades[action](user, ...args));
+const balance = async user => (await db.doc("users/" + user.uid).get()).data().coins;
+try {
+  await db.sql.query(await readFile(new URL("./trading.sql", import.meta.url), "utf8"));
+  for (const user of [alice, bob, eve]) await seed("users/" + user.uid, { ...user, banned: false, coins: 100, chr: 0 });
+  const series = await seed("nftSeries/" + suffix, { photos: ["https://example.com/one.jpg", "https://example.com/two.jpg"] });
+  const a = await seed("nfts/a_" + suffix, { name: "First", ownerUid: alice.uid, ownerNick: alice.nick, forSale: false, price: 0, history: [], seriesId: series, upgraded: true, image: "https://example.com/one.jpg" });
+  const b = await seed("nfts/b_" + suffix, { name: "Second", ownerUid: bob.uid, ownerNick: bob.nick, forSale: false, price: 0, history: [] });
+  const input = { requestId: crypto.randomUUID(), giveIds: [a], takeIds: [b], giveCr: 5, takeCr: 10 };
+  const id = await invoke(alice, "createOffer", input);
+  paths.push("offers/" + id);
+  assert.equal(await balance(alice), 95);
+  assert.equal(await invoke(alice, "createOffer", input), id);
+  assert.equal(await balance(alice), 95);
+  await assert.rejects(invoke(alice, "createOffer", { ...input, requestId: crypto.randomUUID() }));
+  await assert.rejects(withActivity(alice.uid, "giftNft", () => db.doc("nfts/" + a).update({ ownerUid: eve.uid })));
+  await assert.rejects(withActivity(admin.uid, "clientData", () => db.doc("users/" + alice.uid).delete()));
+  await assert.rejects(invoke(eve, "acceptOffer", id));
+  await assert.rejects(invoke(alice, "acceptOffer", id));
+  assert.equal((await db.doc("offers/" + id).get()).data().status, "open");
+  const results = await Promise.allSettled([invoke(bob, "acceptOffer", id), invoke(bob, "acceptOffer", id)]);
+  assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
+  assert.equal(await balance(alice), 105);
+  assert.equal(await balance(bob), 95);
+  assert.equal((await db.doc("nfts/" + a).get()).data().ownerUid, bob.uid);
+  assert.equal((await db.doc("nfts/" + b).get()).data().ownerUid, alice.uid);
+  const second = await invoke(alice, "createOffer", { requestId: crypto.randomUUID(), giveIds: [b], takeIds: [], giveCr: 7, takeCr: 8 });
+  paths.push("offers/" + second);
+  await assert.rejects(invoke(eve, "cancelOffer", second));
+  await invoke(alice, "cancelOffer", second);
+  await invoke(alice, "cancelOffer", second);
+  assert.equal(await balance(alice), 105);
+  assert.equal((await db.doc("nfts/" + b).get()).data().tradeOfferId, null);
+  const claims = await Promise.all([invoke(alice, "claimQuest", "trader"), invoke(alice, "claimQuest", "trader")]);
+  assert.equal(claims.filter(result => result.reward === 50).length, 1);
+  assert.equal(await balance(alice), 155);
+  paths.push("users/" + alice.uid + "/private/quests");
+  await assert.rejects(invoke(eve, "claimQuest", "trader"));
+  await assert.rejects(invoke(alice, "createOffer", { ...input, requestId: crypto.randomUUID(), giveCr: -5 }));
+  await assert.rejects(invoke(alice, "listActivity", true));
+  const history = await invoke(alice, "listActivity", false);
+  assert.ok(history.entries.some(entry => entry.action === "acceptOffer"));
+  assert.ok(history.entries.some(entry => entry.action === "claimQuest"));
+  assert.ok((await invoke(admin, "listActivity", true)).entries.length > 0);
+  const collections = await invoke(bob, "collectionStatus");
+  assert.equal(collections.find(item => item.id === series).variants[0].owned, true);
+  assert.ok((await invoke(alice, "listOffers", "mine")).offers.some(item => item.id === id));
+  console.log("Offer checks passed: escrow, duplicate requests, reserved NFT protection, double acceptance, refunds, quest replay, private history, admin logs and collections.");
+} finally {
+  for (const path of paths.reverse()) await db.doc(path).delete();
+  await db.sql.query("DELETE FROM charmsg.activity WHERE actor_uid = ANY($1::text[])", [[alice.uid, bob.uid, eve.uid]]);
+  await db.terminate();
+}

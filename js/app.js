@@ -27,7 +27,8 @@ import { openAdminLoginModal, openModal, openPlayerLoginModal } from "./ui.js";
 import { avatarData, escapeHtml, fmtNum, nickHtml, toast } from "./util.js";
 import { mountChats } from "./views/chats.js";
 import { mountCasino } from "./views/casino.js";
-import { mountMarket } from "./views/market.js";
+import { mountMarket, mountNfts } from "./views/market.js";
+import { mountEconomy } from "./views/economy.js";
 import { mountPastes } from "./views/pastes.js";
 import { mountProfile } from "./views/profile.js";
 import { mountAdmin } from "./views/admin.js";
@@ -51,6 +52,12 @@ const routes = {
   chats: mountChats,
   casino: mountCasino,
   market: mountMarket,
+  nfts: mountNfts,
+  offers: mountEconomy,
+  collections: mountEconomy,
+  quests: mountEconomy,
+  history: mountEconomy,
+  logs: mountEconomy,
   pastes: mountPastes,
   profile: mountProfile,
   admin: mountAdmin,
@@ -487,7 +494,7 @@ async function boot() {
         notify();
       },
       (err) => console.warn("nfts subscription", err)
-    ), "market", "casino"));
+    ), "nfts", "offers", "casino"));
   }
 
   subscribeProfile(

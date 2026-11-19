@@ -1990,3 +1990,26 @@ body.is-banned .topbar { justify-content: center; }
   .admin-table .table-actions { flex-wrap: wrap; justify-content: flex-start; }
   .admin-table .user-cell { min-width: 0; }
 }
+
+.economy-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.economy-tools { margin: 18px 0; align-items: end; }
+.economy-more { margin-top: 18px; }
+.operation-details { overflow-wrap: anywhere; font-size: 13px; }
+.collection-variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.collection-variant { min-width: 0; display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); }
+.collection-variant.owned { border-color: var(--p4); color: var(--text); }
+.collection-variant img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; }
+.collection-variant:not(.owned) img { filter: grayscale(1); opacity: .45; }
+.offer-assets { min-height: 140px; }
+.nft-id { font-size: 11px; min-width: 0; }
+.economy-tabs ~ .stack p { overflow-wrap: anywhere; }
+@media (min-width: 861px) { .nav { flex-wrap: wrap; } }
+@media (max-width: 860px) {
+  .tabbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .view-root { padding-bottom: 160px; }
+  .toast-root { bottom: max(160px, calc(env(safe-area-inset-bottom) + 150px)); }
+}
+
+.nft-grid > .empty { grid-column: 1 / -1; }
+.offer-assets label { display: flex; gap: 8px; align-items: start; overflow-wrap: anywhere; }
+.offer-assets { max-height: 220px; overflow-y: auto; display: grid; gap: 10px; padding: 12px; }
