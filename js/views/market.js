@@ -450,7 +450,7 @@ export function mountMarket(container, nftOnly = false) {
                <input class="input nft-price-input" data-nft-price="${nft.id}" inputmode="decimal" placeholder="цена CR" value="${nft.forSale ? price : ""}" />
                <button class="btn btn-sm btn-primary" data-nft-list="${nft.id}" type="button">${nft.forSale ? "Обновить" : "Выставить"}</button>
                ${nft.forSale ? `<button class="btn btn-sm btn-ghost" data-nft-unlist="${nft.id}" type="button">Снять</button>` : ""}
-               ${nft.seriesId && !nft.upgraded && nft.lastPrice > 0 ? `<button class="btn btn-sm btn-primary" data-nft-enhance="${escapeHtml(nft.id)}" type="button">Улучшить за ${fmtNum(nft.upgradePrice)} CR</button>` : ""}
+               ${nft.seriesId && !nft.upgraded ? `<button class="btn btn-sm btn-primary" data-nft-enhance="${escapeHtml(nft.id)}" type="button">Улучшить за ${fmtNum(nft.upgradePrice)} CR</button>` : ""}
                <button class="btn btn-sm btn-ghost" data-nft-gift="${escapeHtml(nft.id)}" type="button">Передать</button>
                <button class="btn btn-sm btn-ghost" data-nft-feature="${escapeHtml(nft.id)}" type="button">${state.profile?.featuredNftId === nft.id ? "Убрать из профиля" : "В профиль"}</button>
                <button class="btn btn-sm btn-danger" data-nft-delete="${nft.id}" type="button" title="Удалить NFT">×</button>`

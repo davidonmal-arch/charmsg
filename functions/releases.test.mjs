@@ -50,16 +50,19 @@ try{
  const ref=copies.docs[0].ref, nft=copies.docs[0].data();
  paths.push(ref.path,"nftSeries/"+nft.seriesId);
  assert.equal((await db.doc("nftSeries/"+nft.seriesId).get()).data().photos.length,20);
- await invoke(player,"buyNft",ref.id);
+ await ref.update({ ownerUid: player.localId, ownerNick: "Series player", lastPrice: 0, forSale: false });
+ await assert.rejects(invoke(admin,"enhanceNft",ref.id));
+
  const improved=await invoke(player,"enhanceNft",ref.id);
  paths.push("nftNumbers/"+improved.number);
  assert.ok(photos.includes((await ref.get()).data().image));
+ await assert.rejects(invoke(player,"enhanceNft",ref.id));
  const collection=(await invoke(player,"collectionStatus")).find(item=>item.id===nft.seriesId);
  assert.equal(collection.variants.length,20);
  await assert.rejects(invoke(admin,"releaseNfts",{...input,photos:[...photos,photos[0]]}),error=>error.status==="FAILED_PRECONDITION");
  await assert.rejects(invoke(admin,"releaseNfts",{...input,photos:[photos[0]]}),error=>error.status==="FAILED_PRECONDITION");
  assert.equal((await db.collection("nfts").where("name","==",input.name).get()).size,1);
- console.log("Series API checks passed: 20 variants, upload larger than 2 MiB, purchase, random enhancement, collection progress, 1/21 variant rejection and owner-only release.");
+ console.log("Series API checks passed: 20 variants, upload larger than 2 MiB, zero-purchase-price ownership, owner-only and one-time enhancement, collection progress, 1/21 variant rejection and owner-only release.");
 }finally{
  for(const path of paths.reverse())await db.doc(path).delete();
  await db.terminate();server.kill();

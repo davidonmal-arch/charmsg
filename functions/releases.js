@@ -39,7 +39,8 @@ export async function enhanceNft(uid, id) {
     const nft = (await tx.get(nftRef)).data();
     const user = (await tx.get(userRef)).data();
     if (!user || user.banned || nft?.ownerUid !== uid) throw new Error("Улучшить NFT может только владелец");
-    if (!nft.seriesId || nft.upgraded || !(nft.lastPrice > 0)) throw new Error("Эту копию нельзя улучшить");
+    if (!nft.seriesId || nft.upgraded) throw new Error("Эту копию нельзя улучшить");
+    if (nft.tradeOfferId) throw new Error("Сначала отмените оффер с этим NFT");
     const price = nft.upgradePrice;
     if (!Number.isSafeInteger(price) || price < 1 || price > 100_000 || !(user.coins >= price)) {
       throw new Error("Недостаточно CR для улучшения");

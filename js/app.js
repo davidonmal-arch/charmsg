@@ -27,7 +27,7 @@ import { openAdminLoginModal, openModal, openPlayerLoginModal } from "./ui.js";
 import { avatarData, escapeHtml, fmtNum, nickHtml, toast } from "./util.js";
 import { mountChats } from "./views/chats.js";
 import { mountCasino } from "./views/casino.js";
-import { mountMarket, mountNfts } from "./views/market.js?v=series20-20261119";
+import { mountMarket, mountNfts } from "./views/market.js?v=upgrade-fix-20261119";
 import { mountEconomy } from "./views/economy.js";
 import { mountGames } from "./views/games.js";
 import { setupOfferInbox } from "./offer-notifications.js";
