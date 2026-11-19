@@ -12,7 +12,7 @@ async function check(directory) {
       execFileSync(process.execPath, ["--check", filename], { stdio: "inherit" });
       const source = await readFile(filename, "utf8");
       for (const match of source.matchAll(/(?:from\s*|import\s*\()["'](\.[^"']+)["']/g)) {
-        await access(resolve(dirname(filename), match[1]));
+        await access(resolve(dirname(filename), match[1].split(/[?#]/)[0]));
       }
       checked++;
     }
