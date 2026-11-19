@@ -14,7 +14,6 @@ import {
   where,
   orderBy,
   limit,
-  runTransaction,
   getCountFromServer
 } from "./db.js";
 import {
@@ -390,20 +389,7 @@ export async function tickMarket() {
 // ---------------- admin ----------------
 export async function adminSetPrice(price) {
   const value = Math.max(1, Number(price) || 0);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(MARKET_REF());
-    const market = snap.data() || {};
-    tx.set(
-      MARKET_REF(),
-      {
-        ...market,
-        price: value,
-        lastTick: Date.now(),
-        history: pushHistory(market.history, value, Date.now())
-      },
-      { merge: true }
-    );
-  });
+  await runAction("adminSetPrice", value);
 }
 
 export async function adminSetLiquidity(liq) {

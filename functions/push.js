@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "./database.js";
 import { HttpsError } from "firebase-functions/v2/https";
 import { sendNotification } from "web-push";
 

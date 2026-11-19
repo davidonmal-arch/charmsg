@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "./database.js";
 
 const db = () => getFirestore();
 const users = () => db().collection("users");

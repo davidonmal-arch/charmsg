@@ -1,9 +1,10 @@
 import * as community from "./community.js";
+import { clientData } from "./client-data.js";
 import { enhanceNft, releaseNfts } from "./releases.js";
 import { browserSignals, checkNetworkBan, rememberSignals, updatePlayerBan } from "./network-ban.js";
 import { getAuth } from "firebase-admin/auth";
 import { cert, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "./database.js";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import * as ops from "./operations.js";
 import { notifyDirectMessage, pushPublicKey, subscribeToPush, unsubscribeFromPush } from "./push.js";
@@ -86,6 +87,15 @@ function listPublicChats(chats) {
 }
 
 const actions = {
+  clientData,
+  async adminSetPrice(user, price) {
+    if (!user.isAdmin || !Number.isFinite(price) || price < 1) throw denied();
+    const ref = db().doc("market/state");
+    await db().runTransaction(async tx => {
+      const market = (await tx.get(ref)).data() || {};
+      tx.set(ref, { price, lastTick: Date.now(), history: [...(market.history || []), { t: Date.now(), p: price }].slice(-90) }, { merge: true });
+    });
+  },
   setUsername: (user, value) => community.setUsername(user.uid, value),
   findPlayer: (_, value) => community.findPlayer(value),
   changeClan: (user, input) => community.changeClan(user.uid, data(input)),
@@ -339,7 +349,7 @@ const actions = {
   }
 };
 
-const withoutProfile = new Set(["checkAccess", "createProfile", "ensureAdminProfile", "ensureMarket", "listChats", "listPastes"]);
+const withoutProfile = new Set(["checkAccess", "createProfile", "ensureAdminProfile", "ensureMarket", "listChats", "listPastes", "clientData"]);
 let quotaRetryAt = 0;
 const quotaError = () => new HttpsError("resource-exhausted", "Временный лимит Firestore исчерпан. Попробуйте позже.");
 export const charmsgAction = onCall({
@@ -356,7 +366,9 @@ export const charmsgAction = onCall({
     const profile = await read("users", auth.uid);
     if (!profile && !withoutProfile.has(action)) throw new HttpsError("failed-precondition", "Сначала создайте профиль");
     if (profile && action === "createProfile") throw new HttpsError("already-exists", "Профиль уже существует");
-    if (profile?.banned && !["checkAccess", "expireBanIfNeeded"].includes(action)) throw denied();
+    const ownBanProfile = action === "clientData" && args[0] === "get"
+      && [`users/${auth.uid}`, `users/${auth.uid}/preferences/seen`].includes(args[1]?.path);
+    if (profile?.banned && !ownBanProfile && !["checkAccess", "expireBanIfNeeded"].includes(action)) throw denied();
     const signals = isAdmin(auth) ? [] : browserSignals(rawRequest, request.browserId);
     if (!profile?.banned) await checkNetworkBan(signals);
     const result = await actions[action](authenticatedProfile(auth, profile), ...args);

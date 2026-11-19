@@ -4,10 +4,11 @@ import { generateVAPIDKeys } from "web-push";
 import { fileURLToPath } from "node:url";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "./database.js";
 
 const project = "demo-charmsg";
-assert.equal(process.env.FIRESTORE_EMULATOR_HOST, "127.0.0.1:8080");
+if (process.env.DATABASE_URL) assert.ok(process.env.NEON_BRANCH?.startsWith("migration-test-"), "Use a disposable migration-test Neon branch");
+if (!process.env.DATABASE_URL) assert.equal(process.env.FIRESTORE_EMULATOR_HOST, "127.0.0.1:8080");
 assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST, "127.0.0.1:9099");
 initializeApp({ projectId: project });
 const db = getFirestore();
@@ -54,6 +55,20 @@ async function invoke(session, action, ...args) {
 }
 
 async function direct(session, path, method = "GET", fields) {
+  if (process.env.DATABASE_URL) {
+    const values = fields && Object.fromEntries(Object.entries(fields).map(([key, value]) => [
+      key, "integerValue" in value ? Number(value.integerValue) : value.stringValue
+    ]));
+    try {
+      await invoke(session, "clientData", method === "PATCH" ? "update" : "get", {
+        path: path.split("?")[0], constraints: [], ...(values ? { data: values } : {})
+      });
+      return { status: 200 };
+    } catch (error) {
+      if (["PERMISSION_DENIED", "UNAUTHENTICATED"].includes(error.status)) return { status: 403 };
+      throw error;
+    }
+  }
   return fetch("http://127.0.0.1:8080/v1/projects/" + project + "/databases/(default)/documents/" + path, {
     method, headers: headers(session?.idToken), body: fields ? JSON.stringify({ fields }) : undefined
   });

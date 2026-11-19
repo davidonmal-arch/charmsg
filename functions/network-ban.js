@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { isIP } from "node:net";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "./database.js";
 import { HttpsError } from "firebase-functions/v2/https";
 
 const key = process.env.CHARMSG_MODERATION_KEY;

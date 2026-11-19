@@ -1,5 +1,5 @@
 import { createHash, randomInt } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "./database.js";
 
 const db = () => getFirestore();
 const collection = (database, ...path) => {

@@ -1,13 +1,21 @@
 import express from "express";
 import { charmsgAction } from "./index.js";
+import { getFirestore } from "./database.js";
 
-if (!process.env.FIRESTORE_EMULATOR_HOST && !process.env.CHARMSG_SERVICE_ACCOUNT) {
+if (!process.env.FIREBASE_AUTH_EMULATOR_HOST && !process.env.CHARMSG_SERVICE_ACCOUNT) {
   throw new Error("CHARMSG_SERVICE_ACCOUNT is required");
 }
 
 const app = express();
 app.disable("x-powered-by");
-app.get("/healthz", (_request, response) => response.json({ status: "ok" }));
+app.get("/healthz", async (_request, response) => {
+  try {
+    if (process.env.DATABASE_URL) await getFirestore().sql.query("SELECT 1");
+    response.json({ status: "ok", database: process.env.DATABASE_URL ? "neon" : "firestore" });
+  } catch {
+    response.status(503).json({ status: "database-unavailable" });
+  }
+});
 const callablePath = "/charmsgAction";
 app.options(callablePath, charmsgAction);
 app.post(callablePath, express.json({ limit: "2mb" }), charmsgAction);

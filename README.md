@@ -62,7 +62,7 @@ firebase emulators:exec --project demo-charmsg --only auth,firestore "node funct
 ## Публикация
 
 GitHub Pages размещает фронтенд, Render Free запускает HTTP API на Node.js,
-а Firebase Spark хранит данные и обслуживает вход. Бесплатный сервис Render
+Neon PostgreSQL хранит данные, Firebase Authentication обслуживает вход. Бесплатный сервис Render
 засыпает после 15 минут простоя. Первый запрос после паузы может ждать около минуты.
 
 1. В Firebase Authentication включите «Анонимный» и «Email/Password» и задайте обязательный минимум 12 символов для паролей.

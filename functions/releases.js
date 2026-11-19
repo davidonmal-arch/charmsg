@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "./database.js";
 import { NFT_EFFECTS } from "./operations.js";
 
 export async function releaseNfts(user, { name, description, photos, count, price, upgradePrice }) {

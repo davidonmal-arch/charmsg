@@ -15,3 +15,5 @@ services:
         value: https://davidonmal-arch.github.io
       - key: CHARMSG_SERVICE_ACCOUNT
         sync: false
+      - key: DATABASE_URL
+        sync: false
