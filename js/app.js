@@ -68,6 +68,7 @@ const routes = {
 };
 
 let cleanupView = null;
+let renderedHash = null;
 let onboardingOpen = false;
 
 function currentRoute() {
@@ -110,7 +111,7 @@ function renderRoute() {
       notify();
     }
   }
-  if (state.route === route && cleanupView) {
+  if (state.route === route && cleanupView && (route === "chats" || renderedHash === location.hash)) {
     updateNav();
     return;
   }
@@ -123,6 +124,7 @@ function renderRoute() {
   }
   cleanupView = null;
   state.route = route;
+  renderedHash = location.hash;
   viewEl.innerHTML = "";
   try {
     cleanupView = routes[route](viewEl) || null;
