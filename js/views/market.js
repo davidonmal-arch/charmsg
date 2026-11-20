@@ -1,5 +1,6 @@
 import { state, onChange, userOf } from "../state.js?v=instant-20261119";
 import { confirmDialog, openModal, openProfileModal } from "../ui.js?v=instant-20261119";
+import { runAction } from "../db.js?v=instant-20261119";
 import {
   NFT_EFFECTS,
   buyNft,
@@ -474,6 +475,7 @@ export function mountMarket(container, nftOnly = false) {
                ${nft.forSale ? `<button class="btn btn-sm btn-ghost" data-nft-unlist="${nft.id}" type="button">Снять</button>` : ""}
                ${nft.seriesId && !nft.upgraded ? `<button class="btn btn-sm btn-primary" data-nft-enhance="${escapeHtml(nft.id)}" type="button">Улучшить за ${fmtNum(nft.upgradePrice)} CR</button>` : ""}
                <button class="btn btn-sm btn-ghost" data-nft-gift="${escapeHtml(nft.id)}" type="button">Передать</button>
+               ${state.admin && nftFilter === "mine" && !nft.forSale && !nft.auctionId ? `<button class="btn btn-sm btn-ghost" data-nft-gift-link="${escapeHtml(nft.id)}" type="button">Создать ссылку</button>` : ""}
                <button class="btn btn-sm btn-ghost" data-nft-feature="${escapeHtml(nft.id)}" type="button">${state.profile?.featuredNftId === nft.id ? "Убрать из профиля" : "В профиль"}</button>
                <button class="btn btn-sm btn-danger" data-nft-delete="${nft.id}" type="button" title="Удалить NFT">×</button>`
             : eligibleSale
@@ -815,6 +817,57 @@ export function mountMarket(container, nftOnly = false) {
       } finally {
         enhanceButton.disabled = false;
       }
+      return;
+    }
+    const giftLinkButton = e.target.closest("[data-nft-gift-link]");
+    if (giftLinkButton) {
+      const nft = state.nfts.find(item => item.id === giftLinkButton.dataset.nftGiftLink);
+      if (!state.admin || nft?.ownerUid !== state.uid) return;
+      const modal = openModal(`
+        <button class="modal-close" data-close aria-label="Закрыть">×</button>
+        <h3 class="modal-title">Ссылка на ${escapeHtml(nftTitle(nft))}</h3>
+        <p class="modal-sub">Первый другой игрок, открывший ссылку с активным профилем, бесплатно получит NFT из твоего инвентаря. Новая ссылка заменит предыдущую.</p>
+        <button class="btn btn-primary" type="button" data-create-link>Создать одноразовую ссылку</button>
+        <div hidden data-link-result>
+          <label for="nftGiftLink">Ссылка на подарок</label>
+          <input class="input" id="nftGiftLink" type="url" readonly />
+          <button class="btn" type="button" data-copy-link>Скопировать</button>
+        </div>
+        <p class="hint" role="status"></p>`);
+      const createButton = modal.body.querySelector("[data-create-link]");
+      const status = modal.body.querySelector('[role="status"]');
+      const input = modal.body.querySelector("#nftGiftLink");
+      createButton.onclick = async () => {
+        createButton.disabled = true;
+        status.textContent = "";
+        try {
+          const { token } = await runAction("createNftGiftLink", nft.id);
+          const url = new URL(location.href);
+          const emulator = ["localhost", "127.0.0.1"].includes(url.hostname) && url.searchParams.has("emulator");
+          url.search = emulator ? "?emulator" : "";
+          url.hash = "#/nft-gift?" + new URLSearchParams({ nft: nft.id, token });
+          input.value = url.href;
+          createButton.hidden = true;
+          modal.body.querySelector("[data-link-result]").hidden = false;
+          if (input.isConnected) {
+            input.focus();
+            input.select();
+          }
+        } catch (error) {
+          status.textContent = error.message;
+          createButton.disabled = false;
+        }
+      };
+      modal.body.querySelector("[data-copy-link]").onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(input.value);
+          status.textContent = "Ссылка скопирована";
+        } catch {
+          input.focus();
+          input.select();
+          status.textContent = "Скопируйте выделенную ссылку вручную";
+        }
+      };
       return;
     }
     const giftButton = e.target.closest("[data-nft-gift]");

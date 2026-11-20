@@ -26,7 +26,7 @@ const browserId = localStorage.getItem("charmsg_browser_id") || crypto.randomUUI
 localStorage.setItem("charmsg_browser_id", browserId);
 
 const action = httpsCallable(functions, "charmsgAction", { timeout: 105_000 });
-const nftChanges = new Set(["buyNft", "giftNft", "createNft", "deleteNft", "setNftSale", "enhanceNft", "releaseNfts", "setFeaturedNft", "createOffer", "acceptOffer", "cancelOffer", "playUpgrade"]);
+const nftChanges = new Set(["buyNft", "giftNft", "claimNftGiftLink", "createNft", "deleteNft", "setNftSale", "enhanceNft", "releaseNfts", "setFeaturedNft", "createOffer", "acceptOffer", "cancelOffer", "playUpgrade"]);
 const accountChanges = new Set(["trade", "claimDailyReward", "claimQuest", "claimEvent", "claimSetupRewards", "manageBusiness", "updateProfile", "setUsername", "changeClan", "spinRoulette", "playChance", "playClicker", "adminBanUser", "adminUnbanUser"]);
 export async function runAction(name, ...args) {
   const startedAt = Date.now();

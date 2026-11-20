@@ -27,7 +27,7 @@ import { openAdminLoginModal, openModal, openPlayerLoginModal } from "./ui.js?v=
 import { avatarData, escapeHtml, fmtNum, nickHtml, toast } from "./util.js?v=instant-20261119";
 import { mountChats } from "./views/chats.js?v=instant-20261119";
 import { mountCasino } from "./views/casino.js?v=instant-20261119";
-import { mountMarket, mountNfts } from "./views/market.js?v=instant-20261119";
+import { mountMarket, mountNfts } from "./views/market.js?v=nft-gift-link-20261120";
 import { mountEconomy } from "./views/economy.js?v=instant-20261119";
 import { mountGames } from "./views/games.js?v=instant-20261119";
 import { setupOfferInbox } from "./offer-notifications.js?v=instant-20261119";
@@ -60,6 +60,7 @@ const routes = {
   casino: mountCasino,
   market: mountMarket,
   nfts: mountNfts,
+  "nft-gift": mountNftGift,
   auctions: mountAuctions,
   offers: mountEconomy,
   collections: mountEconomy,
@@ -83,7 +84,7 @@ function currentRoute() {
 
 function updateNav() {
   const route = ["games", "casino", "market", "quests"].includes(state.route) ? "games"
-    : ["nfts", "offers", "collections", "auctions"].includes(state.route) ? "nfts"
+    : ["nfts", "nft-gift", "offers", "collections", "auctions"].includes(state.route) ? "nfts"
       : ["profile", "history", "admin", "logs"].includes(state.route) ? "profile" : "chats";
   const banned = !!state.profile?.banned;
   document.body.classList.toggle("is-banned", banned);
@@ -139,6 +140,54 @@ function renderRoute() {
   }
   updateNav();
   window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+function mountNftGift(container) {
+  const query = new URLSearchParams(location.hash.split("?")[1]);
+  const nftId = query.get("nft");
+  const token = query.get("token");
+  container.innerHTML = `<div class="empty">
+    <h3>Подарок NFT</h3>
+    <p role="status"></p>
+    <button type="button" class="btn" hidden>Повторить</button>
+    <a class="btn" href="#/nfts?filter=mine">Мои NFT</a>
+  </div>`;
+  const status = container.querySelector('[role="status"]');
+  const retry = container.querySelector("button");
+  let started = false;
+  let active = true;
+  async function claim() {
+    if (started) return;
+    if (!nftId || !token) {
+      status.textContent = "Некорректная ссылка на подарок";
+      return;
+    }
+    if (!state.profile || state.profile.banned) {
+      status.textContent = "Войдите в свой аккаунт или создайте профиль, чтобы получить подарок.";
+      return;
+    }
+    started = true;
+    retry.hidden = true;
+    status.textContent = "Получаем подарок…";
+    try {
+      const { name } = await runAction("claimNftGiftLink", nftId, token);
+      if (active) status.textContent = `NFT «${name}» теперь в твоём инвентаре.`;
+    } catch (error) {
+      if (!active) return;
+      status.textContent = error.message;
+      retry.hidden = error.code === "functions/failed-precondition" || error.code === "functions/invalid-argument";
+      retry.onclick = () => {
+        started = false;
+        claim();
+      };
+    }
+  }
+  const unsubscribe = onChange(claim);
+  claim();
+  return () => {
+    active = false;
+    unsubscribe();
+  };
 }
 
 let headerSignature = "";

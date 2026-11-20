@@ -1,4 +1,4 @@
-import { createHash, randomInt } from "node:crypto";
+import { createHash, randomBytes, randomInt } from "node:crypto";
 import { getFirestore } from "./database.js";
 
 const db = () => getFirestore();
@@ -921,6 +921,69 @@ export async function deleteNft(nftId, profile) {
   if (nft.ownerUid !== profile.uid && !profile.isAdmin) throw new Error("Удалять NFT может только владелец или админ");
   if (nft.auctionId) throw new Error("Подарок находится на аукционе");
   await deleteDoc(ref);
+}
+
+function giftLinkDigest(token) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function eligibleLinkNft(nft, ownerUid) {
+  return nft?.ownerUid === ownerUid && !nft.forSale && !nft.tradeOfferId && !nft.auctionId;
+}
+
+export async function createNftGiftLink(nftId, profile) {
+  const token = randomBytes(32).toString("base64url");
+  const database = db();
+  return database.runTransaction(async (tx) => {
+    const nft = (await tx.get(database.doc(`nfts/${nftId}`))).data();
+    if (!eligibleLinkNft(nft, profile.uid)) {
+      throw new Error("Ссылку можно создать только для своего NFT вне продажи, обмена и аукциона");
+    }
+    tx.set(database.doc(`nftGiftLinks/${nftId}`), {
+      ownerUid: profile.uid, digest: giftLinkDigest(token),
+      nftCreatedAt: nft.createdAt ?? null, nftUpdatedAt: nft.updatedAt ?? null
+    });
+    return { token };
+  });
+}
+
+export async function claimNftGiftLink(nftId, token, recipientUid) {
+  if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+    throw new Error("Некорректная ссылка на подарок");
+  }
+  const database = db();
+  const linkRef = database.doc(`nftGiftLinks/${nftId}`);
+  const nftRef = database.doc(`nfts/${nftId}`);
+  const digest = giftLinkDigest(token);
+  return database.runTransaction(async (tx) => {
+    const link = (await tx.get(linkRef)).data();
+    if (!link || link.digest !== digest) throw new Error("Ссылка недействительна или подарок уже получен");
+    if (link.ownerUid === recipientUid) throw new Error("Подарок по этой ссылке может получить другой игрок");
+    const senderRef = database.doc(`users/${link.ownerUid}`);
+    const [nftSnap, senderSnap, recipientSnap] = await Promise.all([
+      tx.get(nftRef), tx.get(senderRef), tx.get(database.doc(`users/${recipientUid}`))
+    ]);
+    const nft = nftSnap.data();
+    const sender = senderSnap.data();
+    const recipient = recipientSnap.data();
+    if (!eligibleLinkNft(nft, link.ownerUid) || (nft.createdAt ?? null) !== link.nftCreatedAt
+      || (nft.updatedAt ?? null) !== link.nftUpdatedAt) {
+      throw new Error("Подарок по этой ссылке больше недоступен");
+    }
+    if (!sender || sender.banned || !recipient || recipient.banned || recipientUid === "system_charmsg") {
+      throw new Error("Профиль недоступен");
+    }
+    const now = Date.now();
+    const history = Array.isArray(nft.history) ? nft.history.slice(-99) : [];
+    history.push({ uid: recipientUid, nick: recipient.nick, price: 0, ts: now, via: "giftLink" });
+    if (sender.featuredNftId === nftId) tx.update(senderRef, { featuredNftId: null });
+    tx.update(nftRef, {
+      ownerUid: recipientUid, ownerNick: recipient.nick,
+      forSale: false, price: 0, updatedAt: now, history
+    });
+    tx.delete(linkRef);
+    return { name: nft.name || "NFT" };
+  });
 }
 
 export async function giftNft(nftId, senderUid, recipientNick) {

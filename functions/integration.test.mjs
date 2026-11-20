@@ -203,6 +203,27 @@ assert.equal((await profile(alice)).coins, receiverBefore.coins);
 await reject(invoke(bob, "giftNft", numbered, "Alice" + suffix), "FAILED_PRECONDITION");
 await reject(invoke(alice, "setNftSale", numbered, 3.01), "FAILED_PRECONDITION");
 
+const linkNft = await invoke(admin, "createNft", { name: "Link gift", image: mintImage });
+await reject(invoke(alice, "createNftGiftLink", numbered), "PERMISSION_DENIED");
+await reject(invoke(admin, "createNftGiftLink", numbered), "FAILED_PRECONDITION");
+await invoke(admin, "setFeaturedNft", linkNft);
+const oldLink = await invoke(admin, "createNftGiftLink", linkNft);
+const link = await invoke(admin, "createNftGiftLink", linkNft);
+assert.equal((await nfts.doc(linkNft).get()).data().ownerUid, uid(admin));
+assert.equal((await direct(alice, "nftGiftLinks/" + linkNft)).status, 403);
+await reject(invoke(null, "claimNftGiftLink", linkNft, link.token), "UNAUTHENTICATED");
+await reject(invoke(alice, "claimNftGiftLink", linkNft, oldLink.token), "FAILED_PRECONDITION");
+await reject(invoke(admin, "claimNftGiftLink", linkNft, link.token), "FAILED_PRECONDITION");
+const claimants = [alice, bob];
+const giftClaims = await Promise.allSettled(claimants.map(player => invoke(player, "claimNftGiftLink", linkNft, link.token)));
+assert.equal(giftClaims.filter(result => result.status === "fulfilled").length, 1);
+const giftWinner = giftClaims.findIndex(result => result.status === "fulfilled");
+assert.equal(giftClaims[giftWinner].value.name, "Link gift");
+assert.equal(giftClaims[1 - giftWinner].reason.status, "FAILED_PRECONDITION");
+assert.equal((await nfts.doc(linkNft).get()).data().ownerUid, uid(claimants[giftWinner]));
+assert.equal((await profile(admin)).featuredNftId, null);
+await reject(invoke(claimants[giftWinner], "claimNftGiftLink", linkNft, link.token), "FAILED_PRECONDITION");
+
 const seriesInput = {
   name: "Test edition " + suffix, photos: ["https://example.test/a.jpg", "https://example.test/b.jpg"],
   count: 3, price: 5, upgradePrice: 2

@@ -265,7 +265,7 @@ export function mountAdmin(container) {
             </div>
           </td>
           <td><button class="btn btn-sm ${u.verified ? "" : "btn-ghost"}" data-action="verify" data-uid="${escapeHtml(uid)}" data-verified="${u.verified ? "1" : "0"}">${u.verified ? "✓ верифицирован" : "Верифицировать"}</button></td>
-          <td class="mono">${fmtNum(u.coins || 0, 1)}</td>
+          <td class="mono">${fmtNum(u.coins || 0, 2)}</td>
           <td class="mono">${fmtNum(u.chr || 0, 3)}</td>
           <td class="mono">${fmtNum(u.msgCount || 0)}</td>
           <td>${u.banned ? `<span class="badge" style="color:#e0a6bf" title="${escapeHtml(u.banReason || "")}">${u.banType === "clicker" ? "бан: автокликер" : u.banType === "radical" ? "усиленный бан" : u.banType === "spam" ? "бан: спам" : u.banType === "screenshot" ? "бан: скриншот" : "ручной бан"}${Number(u.banUntil) > 0 ? " · временно" : " · бессрочно"}</span>` : '<span class="badge">активен</span>'}</td>
@@ -276,7 +276,7 @@ export function mountAdmin(container) {
             </select>
             <button class="btn btn-sm" data-action="ban" data-uid="${escapeHtml(uid)}" data-banned="${u.banned ? "1" : "0"}">${u.banned ? "Разбан" : "Бан"}</button>
             ${uid !== state.uid ? `<button class="btn btn-sm btn-ghost" data-action="password" data-uid="${escapeHtml(uid)}">Пароль</button>` : ""}
-            <button class="btn btn-sm" data-action="coins" data-uid="${escapeHtml(uid)}">+100 CR</button>
+            <button class="btn btn-sm" data-action="coins" data-uid="${escapeHtml(uid)}">Начислить CR</button>
             <button class="btn btn-sm btn-danger" data-action="delete" data-uid="${escapeHtml(uid)}">Удалить</button>
           </div></td>
         </tr>`;
@@ -514,6 +514,45 @@ export function mountAdmin(container) {
     });
   }
 
+  function openGrantCoinsModal(uid, nick) {
+    const modal = openModal(`
+      <button class="modal-close" data-close aria-label="Закрыть">×</button>
+      <h3 class="modal-title">Начислить CR игроку ${escapeHtml(nick)}</h3>
+      <form>
+        <div class="field"><label for="adminGrantAmount">Сумма, CR</label>
+          <input class="input" id="adminGrantAmount" name="amount" type="number" min="0.01" max="1000000" step="0.01" value="100" required /></div>
+        <p class="error-text" role="alert"></p>
+        <button class="btn btn-primary btn-block" type="submit">Начислить</button>
+      </form>`);
+    const form = modal.body.querySelector("form");
+    const amountInput = form.elements.amount;
+    const submit = form.querySelector('[type="submit"]');
+    const errorText = form.querySelector('[role="alert"]');
+    amountInput.focus();
+    amountInput.select();
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (submit.disabled || !form.reportValidity()) return;
+      const amount = amountInput.valueAsNumber;
+      submit.disabled = true;
+      amountInput.disabled = true;
+      errorText.textContent = "";
+      try {
+        await adminGrantCoins(uid, amount);
+      } catch (error) {
+        errorText.textContent = error.message || "Не удалось начислить CR";
+        submit.disabled = false;
+        amountInput.disabled = false;
+        amountInput.focus();
+        return;
+      }
+      modal.close();
+      toast(`Начислено ${amount.toLocaleString("ru-RU")} CR`, "success");
+      await loadUsers();
+      void loadStats();
+    });
+  }
+
   $("usersBody").addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-action]");
     if (!btn) return;
@@ -526,6 +565,10 @@ export function mountAdmin(container) {
     }
     if (action === "password") {
       openPasswordModal(uid, user?.nick || uid);
+      return;
+    }
+    if (action === "coins") {
+      openGrantCoinsModal(uid, user?.nick || uid);
       return;
     }
     try {
@@ -543,9 +586,6 @@ export function mountAdmin(container) {
         const next = btn.dataset.verified !== "1";
         await adminSetVerified(uid, next);
         toast(next ? "Пользователь верифицирован — закрытый чат открыт" : "Верификация снята", "success");
-      } else if (action === "coins") {
-        await adminGrantCoins(uid, 100);
-        toast("Начислено 100 CR", "success");
       } else if (action === "delete") {
         const ok = await confirmDialog("Удалить профиль?", `Профиль ${user?.nick || uid} будет удалён. Сообщения в чатах останутся.`, "Удалить", true);
         if (!ok) return;
