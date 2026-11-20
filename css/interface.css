@@ -1,0 +1,44 @@
+/* CharMsg: a night club for conversations and collections.
+   Redline method: unslop by Damir Sokolovsky, https://heydamir.design/unslop
+   Adapted under CC BY 4.0. Gift artwork and personal name effects remain content. */
+:root{--bg:#141415;--panel:#19191b;--panel-solid:#19191b;--panel-2:#232325;--panel-3:#2b2b2e;--line:rgba(237,237,237,.09);--line-strong:rgba(237,237,237,.2);--text:#ededed;--muted:#b0afb7;--muted-2:#929198;--p1:#655373;--p2:#8e79a0;--p3:#ad97be;--p4:#c4aed4;--p5:#eee7f2;--grad:#e5dbea;--grad-soft:#29262e;--grad-line:#3e3745;--radius:16px;--radius-sm:8px;--shadow:0 16px 48px #0005;--shadow-glow:none;--pos:#78c79b;--neg:#ee969a;--topbar-h:64px}
+body{font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
+.bg{background:var(--bg)}.orb,.grid-overlay{display:none}
+.view-root{max-width:1480px;padding:24px 32px 48px}
+.topbar{height:64px;padding:0 32px;gap:24px;background:#171719;border-color:var(--line);backdrop-filter:none}
+.brand-logo{width:40px;height:40px;border-radius:8px;border-color:var(--line);box-shadow:none;background:#19191b}
+.brand-name{background:none;color:var(--text);font-size:20px;font-weight:600;letter-spacing:0}
+.brand-sub{font-size:11px;letter-spacing:0;text-transform:none;color:var(--muted)}
+.nav{gap:4px}.nav-link{padding:8px 16px;min-height:36px;border-radius:8px;font-size:14px;font-weight:500;letter-spacing:0;transition:background .15s,color .15s}
+.nav-link.active{background:var(--panel-2);color:var(--p4);border-color:var(--line);box-shadow:none}
+.balance-chip,.me-btn,.admin-entry{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:none;min-height:36px}
+.balance-chip:hover,.me-btn:hover,.admin-entry:hover{background:var(--panel-2);box-shadow:none;border-color:var(--line-strong)}
+.page-head{gap:16px;margin-bottom:24px}.page-title{font-size:32px;line-height:1.2;font-weight:500;letter-spacing:0;background:none;color:var(--text)}
+.page-sub{font-size:14px;line-height:1.6;color:var(--muted);max-width:72ch;margin-top:8px}
+.eyebrow,.stat-label,.section-label,.field label,.admin-table th{text-transform:none;letter-spacing:0;font-weight:500}
+.eyebrow{font-size:12px;color:var(--muted);margin-bottom:8px}.eyebrow::before{display:none}
+.section-title,.card h2,.card h3,.modal-title{font-weight:500;letter-spacing:0}
+.btn{min-height:40px;padding:8px 16px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);box-shadow:none;font-size:14px;font-weight:500;letter-spacing:0;transition:background .15s,border-color .15s,color .15s,opacity .15s}
+.btn:hover{background:#303033;transform:none;box-shadow:none;border-color:var(--line-strong)}.btn:active{transform:scale(.98)}
+.btn-primary{background:#e5dbea;color:#211c25;border-color:transparent;box-shadow:none}.btn-primary:hover{background:#f0e9f4;color:#211c25;box-shadow:none;filter:none}
+.btn-ghost{background:transparent}.btn-danger{color:#eea3a6;border-color:#eea3a633;background:transparent}.btn-danger:hover{background:#eea3a614}
+.btn-sm{min-height:36px;padding:8px 12px;font-size:13px;border-radius:8px}
+.input,.textarea,.select{background:#1b1b1e;border:1px solid var(--line-strong);border-radius:8px;padding:12px;font-size:14px;line-height:1.5;box-shadow:none}
+.input:focus,.textarea:focus,.select:focus{border-color:var(--p3);box-shadow:none;outline:2px solid #ad97be44;outline-offset:2px}
+:is(button,a,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--p4);outline-offset:3px}
+.field{gap:8px;min-width:0}.form-grid{gap:16px}.row{gap:8px}.stack{gap:16px}
+.card,.stat-card,.admin-panel,.nft-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:none;backdrop-filter:none}
+.card-pad,.admin-panel{padding:24px}.stat-card{padding:20px}.stats-grid{gap:16px;margin-bottom:24px}
+.stat-value{font-size:28px;font-weight:500;letter-spacing:0;background:none;color:var(--text)}.stat-label{font-size:13px;color:var(--muted)}
+.badge,.badge.solid{background:var(--panel-2);color:var(--muted);border:1px solid var(--line);border-radius:6px;font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;box-shadow:none}
+.hint,.sub,.admin-note{font-size:13px;line-height:1.6;color:var(--muted)}
+.section-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.section-links a{padding:8px 12px;border-radius:8px;font-size:14px;color:var(--muted);background:transparent}
+.section-links a[aria-current=page]{color:var(--text);background:var(--panel-2);box-shadow:inset 0 -2px var(--p3)}
+.admin-tabs{gap:4px;flex-wrap:wrap;margin-bottom:24px}.admin-tab{border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;background:transparent;box-shadow:none}.admin-tab.active{background:var(--panel-2);color:var(--text);box-shadow:none}
+.admin-table{font-size:13px}.admin-table th{background:var(--panel-2);font-size:12px;color:var(--muted);padding:12px}.admin-table td{padding:12px;border-color:var(--line)}.admin-table tbody tr:hover{background:#ffffff04}
+.modal{background:var(--panel-solid);border:1px solid var(--line-strong);border-radius:16px;padding:24px;box-shadow:var(--shadow)}.modal-sub{font-size:14px;line-height:1.6;color:var(--muted)}.modal-actions{gap:8px;margin-top:24px}
+.nft-body{padding:16px;gap:8px}.nft-card-top h3{font-size:15px;font-weight:500;letter-spacing:0}.nft-desc,.nft-owner{font-size:13px}.nft-actions{gap:8px}.nft-actions .btn-sm{font-size:13px;padding:8px 12px;min-height:36px}.nft-price-input{font-size:14px;padding:8px 12px}.nft-effect{font-size:11px;letter-spacing:0;text-transform:none}.nft-price-tag{font-size:12px;font-weight:500}
+.tabbar{background:#171719;border-color:var(--line);backdrop-filter:none}.tabbar a{font-size:12px}.tabbar a.active{color:var(--p4);background:var(--panel-2);box-shadow:none}
+.toast{background:var(--panel-solid);border-color:var(--line-strong);box-shadow:var(--shadow);font-size:14px}
+.quick-btn{font-size:13px;min-height:36px;border-radius:8px;box-shadow:none}.quick-btn.active{background:var(--panel-2);color:var(--text);border-color:var(--p3)}
+@media(max-width:760px){.view-root{padding:16px 16px 96px}.topbar{padding:0 16px;gap:12px}.page-title{font-size:28px}.page-head{align-items:flex-start;flex-wrap:wrap;margin-bottom:20px}.card-pad,.admin-panel{padding:16px}.stats-grid{gap:8px}.stat-card{padding:16px}.stat-value{font-size:24px}.btn,.input,.select{min-height:44px}.nft-actions .btn-sm{min-height:40px}.modal{padding:20px}.section-links{gap:4px}.section-links a{padding:8px}.admin-table td{padding:12px 8px}}

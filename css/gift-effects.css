@@ -1,0 +1,35 @@
+/* Effects sit above opaque gift photos and below labels, without intercepting taps. */
+:is(.fx-glow,.fx-holo,.fx-pulse,.fx-fire,.fx-void,.fx-rainbow,.fx-aurora,.fx-ice,.fx-gold,.fx-sparkle,.fx-glitch){position:relative;isolation:isolate;overflow:hidden}
+:is(.fx-glow,.fx-holo,.fx-pulse,.fx-fire,.fx-void,.fx-rainbow,.fx-aurora,.fx-ice,.fx-gold,.fx-sparkle,.fx-glitch)::before,
+:is(.fx-glow,.fx-holo,.fx-pulse,.fx-fire,.fx-void,.fx-rainbow,.fx-aurora,.fx-ice,.fx-gold,.fx-sparkle,.fx-glitch)::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;border-radius:inherit}
+.nft-effect,.nft-price-tag{z-index:3}
+.fx-fire img,.fx-holo img,.fx-rainbow img,.fx-glow img{animation:none;filter:none}
+.fx-fire::before{inset:30% -5% -9%;background:radial-gradient(ellipse at 50% 100%,#fff7b0 0%,#ffd143 19%,#ff771b 42%,#f03212cc 64%,transparent 76%);clip-path:polygon(0 100%,0 64%,8% 75%,12% 32%,21% 64%,27% 13%,34% 57%,43% 32%,48% 0,57% 52%,65% 20%,70% 65%,80% 34%,86% 72%,94% 44%,100% 67%,100% 100%);transform-origin:bottom;animation:gift-flames 1.2s ease-in-out infinite alternate;opacity:.88}
+.fx-fire::after{background:radial-gradient(circle at 24% 72%,#ffe7a0 0 1px,transparent 2px),radial-gradient(circle at 71% 53%,#ffcf69 0 1.5px,transparent 3px),radial-gradient(circle at 43% 36%,#ffba53 0 1px,transparent 2px),linear-gradient(0deg,#ff5a1744,transparent 55%);animation:gift-embers 2.8s ease-out infinite}
+@keyframes gift-flames{0%{transform:scaleY(.84) skewX(-3deg)}50%{transform:scaleY(1.04) skewX(2deg)}100%{transform:scaleY(.94) skewX(-1deg)}}
+@keyframes gift-embers{0%{transform:translateY(8%);opacity:0}25%{opacity:1}100%{transform:translateY(-18%);opacity:0}}
+.fx-glow::before{box-shadow:inset 0 0 12px 4px #d8a7ff,inset 0 0 36px 9px #9446cf88;animation:gift-breathe 2.8s ease-in-out infinite alternate}
+.fx-glow::after{background:radial-gradient(ellipse at 50% 100%,#d3a2ff44,transparent 65%)}
+.fx-holo::before{background:repeating-linear-gradient(0deg,transparent 0 5px,#b4ffff22 6px 7px),linear-gradient(125deg,transparent 20%,#78fff344 35%,#f3a3ff88 48%,#b9faff55 58%,transparent 72%);background-size:100% 100%,250% 100%;animation:gift-foil 5s ease-in-out infinite alternate;mix-blend-mode:screen}
+.fx-holo::after{box-shadow:inset 0 0 0 2px #b4fff577}
+.fx-rainbow::before{background:linear-gradient(125deg,#ff527455,#ffcf4a44,#54ffac44,#57acff55,#c16fff66);mix-blend-mode:screen}
+.fx-rainbow::after{border:4px solid transparent;background:linear-gradient(110deg,#ff5479,#ffda62,#64f6ae,#64b8ff,#d283ff,#ff5479) border-box;mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);mask-composite:exclude;background-size:300% 100%;animation:gift-foil 5s linear infinite alternate}
+.fx-aurora::before{background:linear-gradient(115deg,transparent 10%,#26ffc166 28%,#70ffc233 38%,transparent 47%,#a76dff66 62%,#66ccff44 76%,transparent 90%);background-size:220% 100%;animation:gift-foil 7s ease-in-out infinite alternate;mix-blend-mode:screen;transform:skewX(-12deg) scale(1.2)}
+.fx-aurora::after{background:radial-gradient(circle at 15% 18%,#fff 0 1px,transparent 2px),radial-gradient(circle at 68% 12%,#fff 0 1px,transparent 2px);animation:gift-breathe 3s ease-in-out infinite alternate}
+.fx-ice img{filter:saturate(.85)}
+.fx-ice::before{background:linear-gradient(135deg,#dbffff99,transparent 25% 75%,#b5edff88),repeating-conic-gradient(from 15deg at 0 0,#b5f0ff55 0deg 8deg,transparent 8deg 24deg);opacity:.65}
+.fx-ice::after{box-shadow:inset 0 0 0 2px #c8faff,inset 0 0 24px 6px #8cdeff99}
+.fx-gold::before{background:linear-gradient(120deg,transparent 25%,#ffedb644 40%,#fff2c4bb 48%,#ffd35144 55%,transparent 70%);background-size:250% 100%;animation:gift-foil 4s ease-in-out infinite alternate}
+.fx-gold::after{box-shadow:inset 0 0 0 3px #e7b843,inset 0 0 22px #d89b3655;background:linear-gradient(0deg,#ae6c2a44,transparent 40%)}
+.fx-sparkle::before{background:radial-gradient(ellipse 2px 13px at 24% 27%,#fff9dc,transparent),radial-gradient(ellipse 13px 2px at 24% 27%,#fff9dc,transparent),radial-gradient(ellipse 2px 9px at 76% 64%,#dfbdff,transparent),radial-gradient(ellipse 9px 2px at 76% 64%,#dfbdff,transparent);animation:gift-breathe 1.8s ease-in-out infinite alternate}
+.fx-sparkle::after{background:radial-gradient(circle at 68% 18%,white 0 1px,transparent 3px),radial-gradient(circle at 17% 78%,#ffdf9f 0 2px,transparent 4px),radial-gradient(circle at 48% 54%,white 0 1px,transparent 3px);animation:gift-breathe 2.5s ease-in-out infinite alternate-reverse}
+.fx-void::before{background:radial-gradient(ellipse at center,transparent 36%,#40096d66 64%,#08000fcc 100%);animation:gift-breathe 4s ease-in-out infinite alternate}
+.fx-void::after{box-shadow:inset 0 0 24px 8px #21003e;background:radial-gradient(ellipse at 50% 100%,#a857df55,transparent 55%);animation:none}
+.fx-pulse img{animation:nftPulse 2.5s ease-in-out infinite}
+.fx-pulse::after{box-shadow:inset 0 0 0 3px #e6b3ff,inset 0 0 20px #b25af966;animation:gift-breathe 1.25s ease-in-out infinite alternate}
+.fx-glitch::before{background:linear-gradient(transparent 17%,#00f2ff55 18% 20%,transparent 21% 64%,#ff388b55 65% 67%,transparent 68%);animation:gift-glitch 3.6s steps(1) infinite}
+.fx-glitch::after{box-shadow:inset 3px 0 #18e7ee77,inset -3px 0 #ff419877;animation:gift-glitch 3.6s steps(1) infinite reverse}
+@keyframes gift-glitch{0%,87%,100%{opacity:0;transform:none}88%,94%{opacity:1;transform:translateY(3%)}91%,96%{opacity:.45;transform:translateY(-4%)}}
+@keyframes gift-breathe{from{opacity:.38}to{opacity:1}}
+@keyframes gift-foil{from{background-position:100% 0}to{background-position:0 0}}
+@media(prefers-reduced-motion:reduce){:is(.fx-glow,.fx-holo,.fx-pulse,.fx-fire,.fx-void,.fx-rainbow,.fx-aurora,.fx-ice,.fx-gold,.fx-sparkle,.fx-glitch)::before,:is(.fx-glow,.fx-holo,.fx-pulse,.fx-fire,.fx-void,.fx-rainbow,.fx-aurora,.fx-ice,.fx-gold,.fx-sparkle,.fx-glitch)::after,:is(.fx-glow,.fx-holo,.fx-pulse,.fx-fire,.fx-rainbow,.fx-glitch) img{animation:none!important}.fx-glitch::before,.fx-glitch::after{opacity:.45}}
