@@ -100,12 +100,11 @@ export function mountAdmin(container) {
       <div>
         <div class="eyebrow">root · ${escapeHtml(state.profile?.nick || ADMIN_LOGIN)}</div>
         <h1 class="page-title">Админ-панель</h1>
-        <p class="page-sub">Пользователи, исчезающие чаты, экономика CharCoin, рассылки и симуляция торговых стратегий.</p>
+        <p class="page-sub">Пользователи, исчезающие чаты, экономика CharCoin и рассылки.</p>
       </div>
       <div class="row wrap">
         <span class="badge solid">${nickHtml("farnaz", true)}</span>
         <a class="btn btn-sm" href="#/logs">Журнал действий</a>
-        <a class="btn btn-sm" href="#/bots">Торговые боты</a>
         <button class="btn btn-sm" id="adminRefresh">Обновить</button>
         <button class="btn btn-sm btn-danger" id="adminLogout">Выйти</button>
       </div>

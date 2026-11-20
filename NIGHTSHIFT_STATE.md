@@ -1,5 +1,18 @@
 # NightShift progress
 
+## Scope change — 20 November 2026
+Added auctions and instant gift buyback under the subsequent user request. New
+files: functions/auctions.js, auctions.test.mjs, js/views/auctions.js. Integrated
+API, NFT navigation, refresh events, auction custody and account-deletion guard.
+Build (48 JS files), navigation, refresh and isolated Neon auction/buyback tests
+passed. Auctions settle lazily on list refresh; no worker or publication added.
+
+User requested removal of the new paper trading bots. Removed their API actions,
+admin route/editor, worker, engine, adapter, SQL setup, tests and npm commands.
+Existing CHR game bots and independent security fixes remain. No production or
+database data was deleted. The earlier plan below is historical; paper trading
+must not be resumed unless explicitly requested again.
+
 ## Objective
 Polish CharMsg UX, stability, performance and security, and deliver an administrator-controlled paper-trading system using verified public market data.
 

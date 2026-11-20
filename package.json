@@ -3,8 +3,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "start": "node scripts/serve.mjs",
-    "test:paper": "npm --prefix functions run test:paper"
+    "start": "node scripts/serve.mjs"
   },
   "dependencies": {
     "@neon/config": "^1.14.4",

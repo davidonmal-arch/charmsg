@@ -1,5 +1,5 @@
 import * as community from "./community.js";
-import * as paper from "./paper/service.js";
+import * as auctions from "./auctions.js";
 import { clientData } from "./client-data.js";
 import * as trading from "./trading.js";
 import { withActivity } from "./activity.js";
@@ -90,11 +90,10 @@ function listPublicChats(chats) {
 }
 
 const actions = {
-  paperSaveBot: paper.paperSaveBot,
-  paperSetStatus: paper.paperSetStatus,
-  paperEmergencyStop: paper.paperEmergencyStop,
-  paperOverview: paper.paperOverview,
-  paperHistory: paper.paperHistory,
+  quickSell: auctions.quickSell,
+  createAuction: auctions.createAuction,
+  bidAuction: auctions.bidAuction,
+  listAuctions: auctions.listAuctions,
   createOffer: trading.createOffer,
   getOffer: trading.getOffer,
   tradeCatalog: trading.tradeCatalog,

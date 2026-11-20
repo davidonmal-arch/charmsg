@@ -842,6 +842,7 @@ export async function setNftSale(nftId, profile, price) {
     const nft = snap.data();
     if (nft.ownerUid !== profile.uid && !profile.isAdmin) throw new Error("Это не ваш NFT");
     const cap = nftResaleLimit(nft);
+    if (nft.auctionId) throw new Error("Подарок находится на аукционе");
     if (value > cap) throw new Error(`Максимальная цена перепродажи — ${cap} CR (3× от покупки)`);
     tx.update(ref, {
       forSale: value > 0,
@@ -918,6 +919,7 @@ export async function deleteNft(nftId, profile) {
   if (!snap.exists()) return;
   const nft = snap.data();
   if (nft.ownerUid !== profile.uid && !profile.isAdmin) throw new Error("Удалять NFT может только владелец или админ");
+  if (nft.auctionId) throw new Error("Подарок находится на аукционе");
   await deleteDoc(ref);
 }
 

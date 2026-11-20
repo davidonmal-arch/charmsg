@@ -36,6 +36,7 @@ export async function runAction(name, ...args) {
     let collections = nftChanges.has(name) ? ["nfts", "users", "trades", "casino"]
       : accountChanges.has(name) ? ["users", "market", "trades", "casino"] : [];
     if (name === "adminSetPrice") collections = ["market"];
+    if (["quickSell", "createAuction", "bidAuction", "listAuctions"].includes(name)) collections = ["nfts", "users", "trades"];
     if (name === "clientData" && ["set", "update", "delete"].includes(args[0]) && args[1]?.path?.split("/").length === 2) {
       collections = [args[1].path.split("/")[0]];
     }

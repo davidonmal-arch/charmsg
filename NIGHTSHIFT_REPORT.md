@@ -1,5 +1,10 @@
 # CharMsg NightShift report
 
+> Historical implementation report. On 20 November 2026 the user requested
+> removal of paper trading bots. Their code, UI, worker and commands were removed;
+> the security fixes remain. The bot descriptions below document the prior commit,
+> not currently available functionality. No production deployment or data deletion occurred.
+
 ## Audit findings
 
 CharMsg is a static ES-module client backed by a callable Express/Firebase API and a Neon PostgreSQL document adapter. The four-section navigation and most empty/loading states were already coherent, so the work kept that structure. The existing CHR market bots were synthetic, ran only when a client ticked the game market and shared player-facing game state; they could not satisfy independent paper portfolios or external market-data requirements.

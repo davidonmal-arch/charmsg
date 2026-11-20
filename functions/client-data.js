@@ -68,6 +68,16 @@ export async function clientData(user, operation, input) {
   if (!user.isAdmin) denied();
   if (operation === "delete") {
     if (input.path === "users/admin_farnaz" || !["users", "chats"].includes(parts[0])) denied();
+    if (parts[0] === "users") {
+      await db.runTransaction(async tx => {
+        const auctions = db.collection("auctions").where("status", "==", "open");
+        const selling = await tx.get(auctions.where("sellerUid", "==", parts[1]).limit(1));
+        const bidding = await tx.get(auctions.where("bidderUid", "==", parts[1]).limit(1));
+        if (!selling.empty || !bidding.empty) throw new HttpsError("failed-precondition", "Сначала завершите аукционы пользователя");
+        tx.delete(ref);
+      });
+      return null;
+    }
     await ref.delete();
   } else if (operation === "update" && parts[0] === "users" && parts.length === 2) {
     if (!input.data || typeof input.data !== "object" || Array.isArray(input.data)) denied();

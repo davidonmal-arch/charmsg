@@ -34,7 +34,7 @@ import { setupOfferInbox } from "./offer-notifications.js?v=instant-20261119";
 import { mountPastes } from "./views/pastes.js?v=instant-20261119";
 import { mountProfile } from "./views/profile.js?v=instant-20261119";
 import { mountAdmin } from "./views/admin.js?v=instant-20261119";
-import { mountBots } from "./views/bots.js?v=instant-20261119";
+import { mountAuctions } from "./views/auctions.js?v=instant-20261119";
 import { mountBan } from "./views/ban.js?v=instant-20261119";
 
 setTheme(localStorage.getItem("charmsg_theme"));
@@ -57,6 +57,7 @@ const routes = {
   casino: mountCasino,
   market: mountMarket,
   nfts: mountNfts,
+  auctions: mountAuctions,
   offers: mountEconomy,
   collections: mountEconomy,
   quests: mountEconomy,
@@ -65,7 +66,6 @@ const routes = {
   pastes: mountPastes,
   profile: mountProfile,
   admin: mountAdmin,
-  bots: mountBots,
   ban: mountBan
 };
 
@@ -80,8 +80,8 @@ function currentRoute() {
 
 function updateNav() {
   const route = ["games", "casino", "market", "quests"].includes(state.route) ? "games"
-    : ["nfts", "offers", "collections"].includes(state.route) ? "nfts"
-      : ["profile", "history", "admin", "logs", "bots"].includes(state.route) ? "profile" : "chats";
+    : ["nfts", "offers", "collections", "auctions"].includes(state.route) ? "nfts"
+      : ["profile", "history", "admin", "logs"].includes(state.route) ? "profile" : "chats";
   const banned = !!state.profile?.banned;
   document.body.classList.toggle("is-banned", banned);
   document.querySelectorAll(".nav-link").forEach((a) => a.classList.toggle("active", a.dataset.route === route));

@@ -924,6 +924,7 @@ export function mountMarket(container, nftOnly = false) {
     container.querySelector(".page-head").innerHTML = '<div><h1 class="page-title">NFT</h1><nav class="section-links" aria-label="NFT"><a href="#/nfts">Магазин</a><a href="#/nfts?filter=mine">Мои NFT</a><a href="#/offers">Обмены</a><a href="#/collections">Коллекции</a></nav></div>';
     const active = nftFilter === "mine" ? "#/nfts?filter=mine" : "#/nfts";
     container.querySelector('.section-links a[href="' + active + '"]')?.setAttribute("aria-current", "page");
+    container.querySelector('.section-links').insertAdjacentHTML('beforeend', '<a href="#/auctions">Аукционы и выкуп</a>');
   } else container.querySelector(".nft-section").style.display = "none";
 
   return () => { alive = false; unsub(); };
