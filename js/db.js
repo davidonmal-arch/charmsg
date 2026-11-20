@@ -31,7 +31,16 @@ const accountChanges = new Set(["trade", "claimDailyReward", "claimQuest", "clai
 export async function runAction(name, ...args) {
   const startedAt = Date.now();
   try {
-    const result = (await action({ action: name, args, browserId })).data;
+    let response;
+    try {
+      response = await action({ action: name, args, browserId });
+    } catch (error) {
+      if (error.code !== "functions/unauthenticated" || !auth.currentUser) throw error;
+      // Refresh the same account; never replace it with a new anonymous identity.
+      await auth.currentUser.getIdToken(true);
+      response = await action({ action: name, args, browserId });
+    }
+    const result = response.data;
     clearQuota(startedAt);
     let collections = nftChanges.has(name) ? ["nfts", "users", "trades", "casino"]
       : accountChanges.has(name) ? ["users", "market", "trades", "casino"] : [];

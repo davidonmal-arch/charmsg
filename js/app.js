@@ -548,7 +548,12 @@ async function boot() {
     },
     (err) => {
       console.error("profile subscription", err);
-      if (err.code !== "resource-exhausted") toast("Нет доступа к профилю в Firestore", "error");
+      if (!String(err.code).endsWith("resource-exhausted")) toast(
+        String(err.code).endsWith("unauthenticated")
+          ? "Сессия не подтверждена. Войдите в существующий аккаунт по логину и паролю."
+          : String(err.code).endsWith("permission-denied")
+            ? "Сервер отказал в доступе к профилю. Сообщите администратору код: " + err.code
+            : "Не удалось загрузить профиль: " + (err.message || "Сервер временно недоступен. Повторяем подключение…"), "error", 10000);
       hideBoot();
     }
   );
@@ -600,11 +605,11 @@ document.addEventListener("visibilitychange", checkDailyReward);
 onChange(updateHeader);
 
 window.addEventListener("online", () => toast("Соединение восстановлено", "success"));
-window.addEventListener("offline", () => toast("Нет сети — Firestore переподключится", "error"));
+window.addEventListener("offline", () => toast("Нет сети. После восстановления подключения повторим загрузку.", "error"));
 
 window.addEventListener("unhandledrejection", (e) => {
   if (e.reason?.code === "permission-denied") {
-    toast("Firestore отклонил запрос. Проверьте правила доступа.", "error");
+    toast("Сервер отказал в доступе. Проверьте вход в аккаунт.", "error");
   }
   console.error("unhandled", e.reason);
 });

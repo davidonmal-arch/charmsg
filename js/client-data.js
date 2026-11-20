@@ -68,6 +68,7 @@ export function onSnapshot(ref, ...args) {
   };
   const invalidate = event => { if (event.detail?.collections?.includes(ref.path.split("/")[0])) poll(); };
   window.addEventListener("charmsg:data-change", invalidate);
+  window.addEventListener("online", poll);
   poll();
-  return () => { stopped = true; clearTimeout(timer); window.removeEventListener("charmsg:data-change", invalidate); };
+  return () => { stopped = true; clearTimeout(timer); window.removeEventListener("charmsg:data-change", invalidate); window.removeEventListener("online", poll); };
 }
