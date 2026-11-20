@@ -1,4 +1,5 @@
 import * as community from "./community.js";
+import * as paper from "./paper/service.js";
 import { clientData } from "./client-data.js";
 import * as trading from "./trading.js";
 import { withActivity } from "./activity.js";
@@ -89,6 +90,11 @@ function listPublicChats(chats) {
 }
 
 const actions = {
+  paperSaveBot: paper.paperSaveBot,
+  paperSetStatus: paper.paperSetStatus,
+  paperEmergencyStop: paper.paperEmergencyStop,
+  paperOverview: paper.paperOverview,
+  paperHistory: paper.paperHistory,
   createOffer: trading.createOffer,
   getOffer: trading.getOffer,
   tradeCatalog: trading.tradeCatalog,
@@ -112,6 +118,16 @@ const actions = {
     await db().runTransaction(async tx => {
       const market = (await tx.get(ref)).data() || {};
       tx.set(ref, { price, lastTick: Date.now(), history: [...(market.history || []), { t: Date.now(), p: price }].slice(-90) }, { merge: true });
+    });
+  },
+  async adminGrantCoins(user, target, amount) {
+    if (!user.isAdmin || target === ops.ADMIN_UID || !Number.isFinite(amount) || Math.abs(amount) > 1_000_000) throw denied();
+    const ref = db().doc("users/" + id(target));
+    await db().runTransaction(async tx => {
+      const snapshot = await tx.get(ref);
+      if (!snapshot.exists) throw new HttpsError("not-found", "Пользователь не найден");
+      const coins = Math.max(0, Math.round(((Number(snapshot.data().coins) || 0) + amount) * 100) / 100);
+      tx.update(ref, { coins });
     });
   },
   setUsername: (user, value) => community.setUsername(user.uid, value),
@@ -400,7 +416,7 @@ export const charmsgAction = onCall({
       quotaRetryAt = Date.now() + 60_000;
       throw quotaError();
     }
-    if (typeof error.code === "number") {
+    if (typeof error.code === "number" || (process.env.DATABASE_URL && /^[0-9A-Z]{5}$/.test(String(error.code || "")))) {
       console.error(error);
       throw new HttpsError("internal", "Операция не выполнена");
     }

@@ -71,6 +71,13 @@ export async function clientData(user, operation, input) {
     await ref.delete();
   } else if (operation === "update" && parts[0] === "users" && parts.length === 2) {
     if (!input.data || typeof input.data !== "object" || Array.isArray(input.data)) denied();
+    const entries = Object.entries(input.data);
+    if (entries.length !== 1) denied();
+    const [field, value] = entries[0];
+    if (field === "rank" && (!Number.isInteger(value) || value < 0 || value > 5)) denied();
+    else if (field === "verified" && typeof value !== "boolean") denied();
+    else if (field === "nickGradient" && !["", "sunset", "ocean", "aurora", "gold", "candy", "rainbow"].includes(value)) denied();
+    else if (!["rank", "verified", "nickGradient"].includes(field)) denied();
     await ref.update(input.data);
   } else if (["set", "update"].includes(operation) && parts[0] === "market" && parts.length === 2) {
     if (!input.data || typeof input.data !== "object" || Array.isArray(input.data)) denied();

@@ -1,0 +1,20 @@
+async page=>{const config={name:"Trend watcher",description:"",strategy:"trend",pairs:["BTC-USD"],initialUsd:10000,maxTradeUsd:250,maxPositionUsd:500,maxPositions:3,riskPct:5,intervalSeconds:60,takeProfitPct:2,stopLossPct:1,maxDrawdownPct:10,dailyLossPct:3,signalPct:.5,feeBps:10,slippageBps:5,maxSpreadBps:30,minVolumeUsd:1000000,maxDataAgeSeconds:30};
+const bot={id:"00000000-0000-4000-8000-000000000001",config,state:{equityCents:1005234,realizedCents:5234,trades:8,closed:4,wins:3,maxDrawdownPct:1.2,positions:[]},status:"running",revision:1,last_error:null};
+const now=Date.now(),events=Array.from({length:8},(_,i)=>({id:String(i+1),bot_id:bot.id,kind:"equity",at:new Date(now-i*60000).toISOString(),data:{equityCents:1000000+i*700}}));
+await page.route("https://charmsg-api.onrender.com/**",async route=>{const body=route.request().postDataJSON()?.data||{},action=body.action;let data=action==="paperOverview"?{control:{halted:false,heartbeat:new Date().toISOString(),worker_error:null},bots:[bot],defaults:config,pairs:["BTC-USD","ETH-USD","SOL-USD"],serverTime:Date.now()}:action==="paperHistory"?{events,next:null}:{ok:true};await route.fulfill({contentType:"application/json",body:JSON.stringify({data})})});
+await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="http://127.0.0.1:5173/css/style.css"><link rel="stylesheet" href="http://127.0.0.1:5173/css/paper.css"></head><body><main id="view"></main><div id="modalRoot"></div></body></html>`);
+await page.evaluate(async()=>{const{mountBots}=await import("http://127.0.0.1:5173/js/views/bots.js?v=instant-20261119");window.cleanup=mountBots(document.querySelector("#view"))});
+await page.getByText("Trend watcher").waitFor();
+if(await page.getByText("Обработчик работает").count()!==1)throw new Error("Worker status missing");
+await page.setViewportSize({width:390,height:844});
+if(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth))throw new Error("Mobile horizontal overflow");
+await page.getByRole("button",{name:"Настроить"}).click();
+if(await page.getByRole("heading",{name:"Настройки бота"}).count()!==1)throw new Error("Editor missing");
+await page.screenshot({path:"paper-bots-mobile.png",fullPage:true});
+await page.getByRole("button",{name:"Отмена"}).click();
+await page.setViewportSize({width:1440,height:900});
+if(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth))throw new Error("Desktop horizontal overflow");
+await page.screenshot({path:"paper-bots-desktop.png",fullPage:true});
+await page.evaluate(()=>window.cleanup());
+console.log("Paper bots UI passed: data, editor, responsive overflow at 390px and 1440px.");
+}

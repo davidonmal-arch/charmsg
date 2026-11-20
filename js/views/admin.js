@@ -62,7 +62,7 @@ function loginHtml() {
         <div class="error-text" id="adminError"></div>
         <button class="btn btn-primary btn-block" id="adminSubmit" type="submit">Войти</button>
       </form>
-      <p class="admin-note">Доступ проверяется по хешу пароля, сохранённому в Firestore. Сессия живёт 12 часов.</p>
+      <p class="admin-note">Доступ проверяется Firebase Authentication и серверным правом администратора.</p>
     </div>`;
 }
 
@@ -100,11 +100,12 @@ export function mountAdmin(container) {
       <div>
         <div class="eyebrow">root · ${escapeHtml(state.profile?.nick || ADMIN_LOGIN)}</div>
         <h1 class="page-title">Админ-панель</h1>
-        <p class="page-sub">Пользователи, исчезающие чаты, экономика CharCoin и рассылки. Всё меняется в Firestore в реальном времени.</p>
+        <p class="page-sub">Пользователи, исчезающие чаты, экономика CharCoin, рассылки и симуляция торговых стратегий.</p>
       </div>
       <div class="row wrap">
         <span class="badge solid">${nickHtml("farnaz", true)}</span>
         <a class="btn btn-sm" href="#/logs">Журнал действий</a>
+        <a class="btn btn-sm" href="#/bots">Торговые боты</a>
         <button class="btn btn-sm" id="adminRefresh">Обновить</button>
         <button class="btn btn-sm btn-danger" id="adminLogout">Выйти</button>
       </div>

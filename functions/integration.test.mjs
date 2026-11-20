@@ -163,11 +163,12 @@ const regularStake = await invoke(alice, "createNft", { name: "Regular valuation
 assert.equal((await nfts.doc(regularStake).get()).data().adminStakeCr, undefined);
 await reject(invoke(alice, "playUpgrade", { stakeType: "nft", stakeNftId: regularStake, targetType: "cr", targetAmount: 51 }), "FAILED_PRECONDITION");
 
-const numbered = await invoke(alice, "createNft", { name: "Numbered", image: mintImage, number: 42, effect: "rainbow", price: 1 });
+const testNftNumber = Number(String(Date.now()).slice(-8));
+const numbered = await invoke(alice, "createNft", { name: "Numbered", image: mintImage, number: testNftNumber, effect: "rainbow", price: 1 });
 const numberedDoc = (await nfts.doc(numbered).get()).data();
-assert.equal(numberedDoc.number, 42);
+assert.equal(numberedDoc.number, testNftNumber);
 assert.equal(numberedDoc.effect, "rainbow");
-await reject(invoke(admin, "createNft", { name: "Duplicate", image: mintImage, number: 42 }), "FAILED_PRECONDITION");
+await reject(invoke(admin, "createNft", { name: "Duplicate", image: mintImage, number: testNftNumber }), "FAILED_PRECONDITION");
 await reject(invoke(bob, "setFeaturedNft", numbered), "PERMISSION_DENIED");
 await invoke(alice, "setFeaturedNft", numbered);
 assert.equal((await profile(alice)).featuredNftId, numbered);
@@ -203,7 +204,7 @@ await reject(invoke(bob, "giftNft", numbered, "Alice" + suffix), "FAILED_PRECOND
 await reject(invoke(alice, "setNftSale", numbered, 3.01), "FAILED_PRECONDITION");
 
 const seriesInput = {
-  name: "Test edition", photos: ["https://example.test/a.jpg", "https://example.test/b.jpg"],
+  name: "Test edition " + suffix, photos: ["https://example.test/a.jpg", "https://example.test/b.jpg"],
   count: 3, price: 5, upgradePrice: 2
 };
 await reject(invoke(alice, "releaseNfts", seriesInput), "PERMISSION_DENIED");
@@ -325,16 +326,18 @@ assert.equal((await invoke(spammer, "claimSetupRewards")).reward, 20);
 assert.equal((await invoke(spammer, "claimSetupRewards")).reward, 0);
 assert.equal((await invoke(alice, "claimSetupRewards")).reward, 0);
 
-await invoke(alice, "setUsername", "@alpha_team");
-await reject(invoke(bob, "setUsername", "ALPHA_TEAM"), "FAILED_PRECONDITION");
-assert.equal((await invoke(bob, "findPlayer", "@ALPHA_TEAM"))[0].uid, uid(alice));
-assert.equal((await invoke(bob, "findPlayer", "Ali"))[0].uid, uid(alice));
-await invoke(alice, "setUsername", "alpha_next");
-assert.deepEqual(await invoke(bob, "findPlayer", "@alpha_team"), []);
-await invoke(alice, "changeClan", { action: "create", tag: "WOLF", name: "Wolf team" });
-await invoke(bob, "changeClan", { action: "join", tag: "wolf" });
-assert.equal((await profile(alice)).clanTag, "WOLF");
-assert.equal((await profile(bob)).clanTag, "WOLF");
+const firstUsername = "alpha_" + suffix, nextUsername = "next_" + suffix;
+await invoke(alice, "setUsername", "@" + firstUsername);
+await reject(invoke(bob, "setUsername", firstUsername.toUpperCase()), "FAILED_PRECONDITION");
+assert.equal((await invoke(bob, "findPlayer", "@" + firstUsername.toUpperCase()))[0].uid, uid(alice));
+assert.ok((await invoke(bob, "findPlayer", "Alice" + suffix.slice(0, 2))).some(player => player.uid === uid(alice)));
+await invoke(alice, "setUsername", nextUsername);
+assert.deepEqual(await invoke(bob, "findPlayer", "@" + firstUsername), []);
+const testClan = suffix.slice(-6).toUpperCase();
+await invoke(alice, "changeClan", { action: "create", tag: testClan, name: "Wolf team" });
+await invoke(bob, "changeClan", { action: "join", tag: testClan.toLowerCase() });
+assert.equal((await profile(alice)).clanTag, testClan);
+assert.equal((await profile(bob)).clanTag, testClan);
 await invoke(bob, "changeClan", { action: "leave" });
 assert.equal((await profile(bob)).clanTag, "");
 

@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "main": "index.js",
+  "scripts": { "paper:worker": "node paper/worker.js", "test:paper": "node paper/engine.test.mjs && node paper/market-data.test.mjs", "test:paper-db": "node paper/service.test.mjs" },
   "engines": {
     "node": "22"
   },

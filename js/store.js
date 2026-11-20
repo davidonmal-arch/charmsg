@@ -414,11 +414,7 @@ export async function adminResetMarket() {
 }
 
 export async function adminGrantCoins(uid, amount) {
-  const userRef = doc(db, "users", uid);
-  const snap = await getDoc(userRef);
-  if (!snap.exists()) throw new Error("Пользователь не найден");
-  const current = Number(snap.data().coins) || 0;
-  await updateDoc(userRef, { coins: Math.max(0, Math.round((current + Number(amount)) * 100) / 100) });
+  return runAction("adminGrantCoins", uid, Number(amount));
 }
 
 export function checkAccess() {
