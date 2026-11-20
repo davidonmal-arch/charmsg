@@ -47,6 +47,9 @@ const balanceValue = document.getElementById("balanceValue");
 const navAdmin = document.getElementById("navAdmin");
 const tabAdmin = document.getElementById("tabAdmin");
 const adminEntryBtn = document.getElementById("adminEntryBtn");
+const guestLoginBtn = document.getElementById("guestLoginBtn");
+// Login remains available even if authentication or profile loading fails during boot.
+guestLoginBtn.addEventListener("click", () => openPlayerLoginModal());
 
 // Debug handle (also handy for support)
 window.__charmsg = state;
@@ -141,6 +144,7 @@ function renderRoute() {
 let headerSignature = "";
 function updateHeader() {
   const p = state.profile;
+  guestLoginBtn.hidden = !!p || state.admin;
   const signature = `${state.admin}|${p?.nick || ""}|${p?.avatar || ""}|${!!p?.isAdmin}|${p?.nickGradient || ""}|${p?.clanTag || ""}|${p?.coins || 0}`;
   if (signature === headerSignature) {
     updateNav();
@@ -236,12 +240,12 @@ function showOnboarding() {
     {
       onClose: () => {
         onboardingOpen = false;
-        if (!state.profile) setTimeout(showOnboarding, 1200);
       }
     }
   );
 
   modal.body.querySelector("#existingPlayerLogin").addEventListener("click", () => {
+    modal.close();
     openPlayerLoginModal();
   });
   const nickEl = modal.body.querySelector("#onboardNick");
@@ -300,7 +304,8 @@ function showOnboarding() {
 
 function wireHeader() {
   document.getElementById("meBtn").addEventListener("click", () => {
-    location.hash = "#/profile";
+    if (!state.profile && !state.admin) openPlayerLoginModal();
+    else location.hash = "#/profile";
   });
   adminEntryBtn.addEventListener("click", () => {
     if (state.admin) location.hash = "#/admin";
@@ -367,6 +372,20 @@ async function startDefaultPush(uid) {
   };
 }
 
+function showConnectionRecovery(error) {
+  let panel = document.getElementById("connectionRecovery");
+  if (!panel) {
+    panel = document.createElement("section");
+    panel.id = "connectionRecovery";
+    panel.className = "card card-pad stack";
+    panel.setAttribute("role", "alert");
+    document.getElementById("view").before(panel);
+  }
+  panel.innerHTML = '<h2>Не удалось загрузить аккаунт</h2><p>Профиль и чаты ещё не загружены. Это не означает, что они удалены. Не очищайте данные браузера и не создавайте новый профиль.</p><p class="hint">Если сервер показывает проверку браузера, откройте его отдельно и пройдите проверку вручную, затем вернитесь сюда.</p><div class="row wrap"><button class="btn btn-primary" data-login>Войти по логину и паролю</button><button class="btn" data-retry>Повторить загрузку</button><a class="btn" href="https://charmsg-api.onrender.com/healthz" target="_blank" rel="noopener">Открыть сервер</a></div><p class="hint">Код: '+escapeHtml(String(error?.code || 'connection-error'))+'</p>';
+  panel.querySelector('[data-login]').onclick = () => openPlayerLoginModal();
+  panel.querySelector('[data-retry]').onclick = () => location.reload();
+}
+
 async function boot() {
   try {
     state.admin = await verifyAdminSession();
@@ -374,6 +393,7 @@ async function boot() {
     console.error("Firebase authentication failed", error);
     toast("Не удалось войти в CharMsg. Проверьте подключение и обновите страницу.", "error");
     hideBoot();
+    showConnectionRecovery(error);
     return;
   }
   state.uid = currentUid();
@@ -510,6 +530,7 @@ async function boot() {
   subscribeProfile(
     state.uid,
     (profile) => {
+      document.getElementById("connectionRecovery")?.remove();
       state.profile = profile;
       const active = !!profile && !profile.banned;
       if (active !== loaded) {
@@ -548,6 +569,7 @@ async function boot() {
     },
     (err) => {
       console.error("profile subscription", err);
+      showConnectionRecovery(err);
       if (!String(err.code).endsWith("resource-exhausted")) toast(
         String(err.code).endsWith("unauthenticated")
           ? "Сессия не подтверждена. Войдите в существующий аккаунт по логину и паролю."

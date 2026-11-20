@@ -162,7 +162,7 @@ export function openPlayerLoginModal({ link = false, onLinked } = {}) {
          <input class="input" id="playerPassword" name="password" type="password"
            autocomplete="${link ? "new-password" : "current-password"}" ${link ? 'minlength="12"' : ""} required />
        </div>
-       ${link ? '<p class="hint">Логин для входа можно выбрать отдельно от ника. Запишите пароль, поскольку восстановление по почте недоступно.</p>' : ""}
+       ${link ? '<p class="hint">Логин для входа можно выбрать отдельно от ника. Запишите пароль, поскольку восстановление по почте недоступно.</p>' : '<p class="hint">Введите логин, который сохранили в профиле: он может отличаться от ника. Ваши чаты, подарки и баланс останутся в существующем аккаунте. Если пароль не настраивали, обратитесь к администратору — не очищайте данные браузера.</p>'}
        <p class="error-text" role="alert"></p>
        <button class="btn btn-primary btn-block" type="submit">${link ? "Сохранить" : "Войти"}</button>
      </form>`
